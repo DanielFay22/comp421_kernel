@@ -75,32 +75,42 @@ void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
                 (void *) (exceptionInfo->regs[2]),
                 (int) (exceptionInfo->regs[3]));
             break;
+
+        default :
+            Traceprintf(0, "invalid trap call");
+            Halt();
     }
 
 }
 
 void trap_clock_handler(ExceptionInfo *exceptionInfo) {
-
+    Traceprintf(1, "trap_clock_handler");
+    Halt();
 }
 
 void trap_illegal_handler(ExceptionInfo *exceptionInfo) {
-
+    Traceprintf(1, "trap_illegal_handler");
+    Halt();
 }
 
 void trap_memory_handler(ExceptionInfo *exceptionInfo) {
-
+    Traceprintf(1, "trap_memory_handler");
+    Halt();
 }
 
 void trap_math_handler(ExceptionInfo *exceptionInfo) {
-
+    Traceprintf(1, "trap_math_handler");
+    Halt();
 }
 
 void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
-
+    Traceprintf(1, "trap_tty_transmit_handler");
+    Halt();
 }
 
 void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
-
+    Traceprintf(1, "trap_tty_receive_handler");
+    Halt();
 }
 
 

@@ -34,6 +34,8 @@ void *cur_brk = NULL;
 
 struct pte kernel_page_table[PAGE_TABLE_LEN];
 
+struct pte idle_page_table[PAGE_TABLE_LEN];
+
 
 
 
@@ -161,29 +163,44 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
     int i;
     long end_text = (long)&_etext;
-    int text_pages = end_text / PAGESIZE;
+    int text_pages = (end_text - VMEM_1_BASE) / PAGESIZE;
     for (i = 0; i < text_pages; i++) {
-        struct pte entry = {(long)&kernel_page_table[i] >> PAGESHIFT, 0b11111, 0b000, 0b101, 0b1};
+        struct pte entry = {(VMEM_1_BASE + i * PAGESIZE) >> PAGESHIFT, 0b11111, 0b000, 0b101, 0b1};
         kernel_page_table[i] = entry;
     }
 
     int heap_pages = ((long)cur_brk - end_text) / PAGESIZE;
     for (i = text_pages; i < text_pages + heap_pages; i++) {
-        struct pte entry = {(long)&kernel_page_table[i] >> PAGESHIFT, 0b11111, 0b000, 0b110, 0b1};
+        struct pte entry = {(VMEM_1_BASE + i * PAGESIZE) >> PAGESHIFT, 0b11111, 0b000, 0b011, 0b1};
         kernel_page_table[i] = entry;
     }
 
     int k_unused_pages = (VMEM_LIMIT - (long)cur_brk) / PAGESIZE;
     for (i = text_pages + heap_pages; i < text_pages + heap_pages + k_unused_pages; i++) {
-        struct pte entry = {(long)&kernel_page_table[i] >> PAGESHIFT, 0b00000, 0b000, 0b000, 0b0};
+        struct pte entry = {(VMEM_1_BASE + i * PAGESIZE) >> PAGESHIFT, 0b00000, 0b000, 0b000, 0b0};
         kernel_page_table[i] = entry;
     }
+
+    // Initialize Region 0
+    for (i = 4; i > 0; i--) {
+        struct pte entry = {(VMEM_1_BASE - i * PAGESIZE) >> PAGESHIFT, 0b00000, 0b000, 0b011, 0b1};
+        idle_page_table[PAGE_TABLE_LEN - i] = entry;
+    }
+    struct pte entry = {(VMEM_1_BASE - 5 * PAGESIZE) >> PAGESHIFT, 0b00000, 0b110, 0b011, 0b1};
+    idle_page_table[PAGE_TABLE_LEN - 5] = entry;
+    for (i = 0; i < PAGE_TABLE_LEN - 5; i++) {
+        struct pte entry = {(VMEM_BASE + i * PAGESIZE) >> PAGESHIFT, 0b00000, 0b000, 0b000, 0b0};
+        idle_page_table[i] = entry;
+    }
+
+    WriteRegister(REG_PTR0, (RCS421RegVal) &idle_page_table);
+    WriteRegister(REG_PTR1, (RCS421RegVal) &kernel_page_table);
 
     // TODO: structure associating Pid's with page tables
     //  -hash table with Pid as key
 
 
-//    WriteRegister(REG_VM_ENABLE, 1);
+    WriteRegister(REG_VM_ENABLE, 1);
 }
 
 

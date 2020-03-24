@@ -19,10 +19,20 @@ void trap_tty_receive_handler(ExceptionInfo *exceptionInfo);
 
 void (*interrupt_table[TRAP_VECTOR_SIZE])(ExceptionInfo *) = {NULL};
 
+
+
+struct free_page {
+    char in_use;
+};
+
+struct free_page *free_pages;
+
+
 unsigned int tot_pmem_size;
 void *cur_brk = NULL;
 
 
+struct pte kernel_page_table[PAGE_TABLE_LEN];
 
 
 
@@ -114,8 +124,15 @@ void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
 }
 
 
+struct pte *get_new_page_table() {
 
+    struct pte *table = (struct pte *)cur_brk;
 
+    SetKernelBrk((void *) (table + PAGE_TABLE_LEN));
+
+    // TODO: allocate and initializing a new page table
+    return table;
+}
 
 
 void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
@@ -136,6 +153,20 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     // Write address of interrupt vector table to REG_VECTOR_BASE register
     WriteRegister(REG_VECTOR_BASE, (RCS421RegVal) &interrupt_table);
 
+    // Allocate a structure for storing the status of all physical pages.
+    free_pages = (struct free_page *)cur_brk;
+    cur_brk = UP_TO_PAGE(free_pages + (pmem_size / PAGESIZE));
+
+
+    // TODO: Setup DS containing all physical frames
+
+    // TODO: Initialize kernel page table
+
+    // TODO: structure associating Pid's with page tables
+    //  -hash table with Pid as key
+
+
+//    WriteRegister(REG_VM_ENABLE, 1);
 }
 
 

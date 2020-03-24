@@ -160,19 +160,44 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     // TODO: Initialize kernel page table
 
     int i;
-    int text_pages = &_etext / PAGESIZE
+
+    int text_pages = (long)&_etext / PAGESIZE;
     for (i = 0; i < text_pages; i++) {
-        kernel_page_table[i] = {&kernel_page_table[i] >> PAGE_SHIFT, 0b11111, 0b000, 0b101, 0b1}
+        struct pte entry = {
+            .pfn = (long)&kernel_page_table[i] >> PAGESHIFT,
+            .unused = 0b11111,
+            .uprot = 0b000,
+            .kprot = 0b101,
+            .valid = 0b1
+        };
+
+        kernel_page_table[i] = entry;
     }
 
-    int heap_pages = (cur_brk - &_etext) / PAGESIZE
+    int heap_pages = ((long)cur_brk - (long)&_etext) / PAGESIZE;
     for (i = text_pages; i < text_pages + heap_pages; i++) {
-        kernel_page_table[i] = {&kernel_page_table[i] >> PAGE_SHIFT, 0b11111, 0b000, 0b110, 0b1}
+        struct pte entry = {
+            .pfn = (long)&kernel_page_table[i] >> PAGESHIFT,
+            .unused = 0b11111,
+            .uprot = 0b000,
+            .kprot = 0b110,
+            .valid = 0b1
+        };
+
+        kernel_page_table[i] = entry;
     }
     
-    int k_unused_pages = (VMEM_LIMIT - cur_brk) / PAGESIZE
+    int k_unused_pages = (VMEM_LIMIT - (long)cur_brk) / PAGESIZE;
     for (i = cur_brk; i < text_pages + heap_pages + k_unused_pages; i++) {
-        kernel_page_table[i] = {&kernel_page_table[i] >> PAGE_SHIFT, 0b00000, 0b000, 0b000, 0b0}
+        struct pte entry = {
+            .pfn = (long)&kernel_page_table[i] >> PAGESHIFT,
+            .unused = 0b00000,
+            .uprot = 0b000,
+            .kprot = 0b000,
+            .valid = 0b0
+        };
+
+        kernel_page_table[i] = entry;
     }
 
     // TODO: structure associating Pid's with page tables

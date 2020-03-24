@@ -22,6 +22,9 @@ void (*interrupt_table[TRAP_VECTOR_SIZE])(ExceptionInfo *) = {NULL};
 unsigned int tot_pmem_size;
 void *cur_brk = NULL;
 
+pte (*init_pt_r0[PAGE_TABLE_LEN]) = PMEM_BASE
+pte (*init_pt_r1[PAGE_TABLE_LEN]) = init_pt_r0 + (PAGE_TABLE_LEN * 4)
+
 
 
 
@@ -135,6 +138,8 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
     // Write address of interrupt vector table to REG_VECTOR_BASE register
     WriteRegister(REG_VECTOR_BASE, (RCS421RegVal) &interrupt_table);
+
+
 
 }
 

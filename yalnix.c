@@ -157,10 +157,23 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     free_pages = (struct free_page *)cur_brk;
     cur_brk = UP_TO_PAGE(free_pages + (pmem_size / PAGESIZE));
 
-
-    // TODO: Setup DS containing all physical frames
-
     // TODO: Initialize kernel page table
+
+    int i;
+    int text_pages = &_etext / PAGESIZE
+    for (i = 0; i < text_pages; i++) {
+        kernel_page_table[i] = {&kernel_page_table[i] >> PAGE_SHIFT, 0b11111, 0b000, 0b101, 0b1}
+    }
+
+    int heap_pages = (cur_brk - &_etext) / PAGESIZE
+    for (i = text_pages; i < text_pages + heap_pages; i++) {
+        kernel_page_table[i] = {&kernel_page_table[i] >> PAGE_SHIFT, 0b11111, 0b000, 0b110, 0b1}
+    }
+    
+    int k_unused_pages = (VMEM_LIMIT - cur_brk) / PAGESIZE
+    for (i = cur_brk; i < text_pages + heap_pages + k_unused_pages; i++) {
+        kernel_page_table[i] = {&kernel_page_table[i] >> PAGE_SHIFT, 0b00000, 0b000, 0b000, 0b0}
+    }
 
     // TODO: structure associating Pid's with page tables
     //  -hash table with Pid as key

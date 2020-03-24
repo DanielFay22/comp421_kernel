@@ -189,7 +189,14 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     
     int k_unused_pages = (VMEM_LIMIT - (long)cur_brk) / PAGESIZE;
     for (i = text_pages + heap_pages; i < text_pages + heap_pages + k_unused_pages; i++) {
-        struct pte entry = {(VMEM_1_BASE + i * PAGESIZE) >> PAGESHIFT, 0b00000, 0b000, 0b000, 0b0};
+        struct pte entry = {
+            .pfn = (VMEM_1_BASE + i * PAGESIZE) >> PAGESHIFT,
+            .unused = 0b00000,
+            .uprot = 0b000,
+            .kprot = 0b000,
+            .valid = 0b0
+        };
+
         kernel_page_table[i] = entry;
     }
 

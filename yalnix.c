@@ -160,8 +160,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     // TODO: Initialize kernel page table
 
     int i;
-
-    int text_pages = (long)&_etext / PAGESIZE;
+    int text_pages = (long)&_etext / PAGESIZE
     for (i = 0; i < text_pages; i++) {
         struct pte entry = {
             .pfn = (long)&kernel_page_table[i] >> PAGESHIFT,

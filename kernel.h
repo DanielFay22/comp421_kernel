@@ -14,22 +14,12 @@
 
 
 
-// Interrupt handlers
-void trap_kernel_handler(ExceptionInfo *exceptionInfo);
-void trap_clock_handler(ExceptionInfo *exceptionInfo);
-void trap_illegal_handler(ExceptionInfo *exceptionInfo);
-void trap_memory_handler(ExceptionInfo *exceptionInfo);
-void trap_math_handler(ExceptionInfo *exceptionInfo);
-void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo);
-void trap_tty_receive_handler(ExceptionInfo *exceptionInfo);
+extern int alloc_page(void);
+extern int free_page(int pfn);
 
-void idle_process(void);
+extern SavedContext *ContextSwitchFunc(SavedContext *, void *, void *);
 
-int alloc_page(void);
-int free_page(int pfn);
-
-SavedContext *ContextSwitchFunc(SavedContext *, void *, void *);
-
+extern int LoadProgram(char *name, char **args, ExceptionInfo *info);
 
 struct free_page {
     char in_use;
@@ -53,6 +43,8 @@ struct process_info {
     unsigned int pid;
     struct pte *page_table;
     unsigned int user_pages;    // Number of allocated pages (excluding kernel stack)
+    void *pc;
+    void *sp;
     SavedContext ctx;
     struct process_info *next_process;
 };

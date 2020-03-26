@@ -7,6 +7,18 @@
 
 
 
+// Interrupt handlers
+void trap_kernel_handler(ExceptionInfo *exceptionInfo);
+void trap_clock_handler(ExceptionInfo *exceptionInfo);
+void trap_illegal_handler(ExceptionInfo *exceptionInfo);
+void trap_memory_handler(ExceptionInfo *exceptionInfo);
+void trap_math_handler(ExceptionInfo *exceptionInfo);
+void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo);
+void trap_tty_receive_handler(ExceptionInfo *exceptionInfo);
+
+void idle_process(void);
+
+
 
 void (*interrupt_table[TRAP_VECTOR_SIZE])(ExceptionInfo *) = {NULL};
 
@@ -69,7 +81,8 @@ void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 }
 
 void trap_clock_handler(ExceptionInfo *exceptionInfo) {
-    TracePrintf(1, "trap_clock_handler: %u\n", active_clock_count);
+    TracePrintf(1, "trap_clock_handler - Active process: %u\n",
+        active_process->pid);
 
     // If any processes are available, switch to them.
     if (++active_clock_count >= 2 && process_queue != NULL) {
@@ -118,14 +131,21 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
 
     curProc->ctx = *ctxp;
 
-    if (process_queue == NULL)
-        process_queue = curProc;
-    else
-        process_queue->next_process = curProc;
+    // If the running process is not the idle process, put it back on the queue.
+    if (curProc->pid != 0) {
+        if (process_queue == NULL)
+            process_queue = curProc;
+        else
+            process_queue->next_process = curProc;
+    }
 
     active_process = newProc;
 
+    // Set region 0 page table to new process table
     WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
+
+    // Flush region 0 entries from the TLB
+    WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
 
     return &newProc->ctx;
 }
@@ -277,29 +297,33 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     WriteRegister(REG_PTR0, (RCS421RegVal) &idle_page_table);
     WriteRegister(REG_PTR1, (RCS421RegVal) &kernel_page_table);
 
-    struct process_info idle = {
+    // TODO: structure associating Pid's with page tables
+    //  -hash table with Pid as key
+
+    // Setup idle process
+    struct process_info *idle = malloc(sizeof(struct process_info));
+    *idle = (struct process_info){
         .pid = 0,
         .user_pages = 1,
         .page_table = idle_page_table,
+        .pc = (void *)&idle_process,
+        .sp = (void *)USER_STACK_LIMIT,
         .ctx = NULL,
         .next_process = NULL
     };
 
-    processes = &idle;
+    processes = idle;
 
 
-
-
-
-    // TODO: structure associating Pid's with page tables
-    //  -hash table with Pid as key
-
+    // enable virtual memory
     WriteRegister(REG_VM_ENABLE, 1);
     vmem_enabled = 1;
 
-    // Set the PC and SP of active process (idle process)
-    info->pc = (void *)&idle_process;
-    info->sp = (void *)USER_STACK_LIMIT;
+    active_process = idle;
+
+    // Set the PC and SP of active process
+    info->pc = active_process->pc;
+    info->sp = active_process->sp;
 
     process_queue = NULL;
 
@@ -312,6 +336,8 @@ int SetKernelBrk(void *addr) {
 
     if (vmem_enabled == 0) {
         cur_brk = addr;
+    } else {
+        // TODO: allocate more pages of vmem
     }
 
     return 0;

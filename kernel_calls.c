@@ -1,5 +1,6 @@
 
-#include <comp421/yalnix.h>
+
+#include "kernel.h"
 
 
 
@@ -15,7 +16,7 @@ int Exec(char *filename, char **argvec) {
 
 
 void Exit(int status) {
-
+    Halt();
 }
 
 int Wait(int *status_ptr) {
@@ -23,7 +24,7 @@ int Wait(int *status_ptr) {
 }
 
 int GetPid(void) {
-    return 0;
+    return active_process->pid;
 }
 
 int Brk(void *addr) {

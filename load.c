@@ -47,8 +47,8 @@ LoadProgram(char *name, char **args)
     TracePrintf(0, "LoadProgram '%s', args %p\n", name, args);
 
     if ((fd = open(name, O_RDONLY)) < 0) {
-	TracePrintf(0, "LoadProgram: can't open file '%s'\n", name);
-	return (-1);
+	    TracePrintf(0, "LoadProgram: can't open file '%s'\n", name);
+	    return (-1);
     }
 
     status = LoadInfo(fd, &li);
@@ -71,7 +71,7 @@ LoadProgram(char *name, char **args)
 	    return (-1);
     }
     TracePrintf(0, "text_size 0x%lx, data_size 0x%lx, bss_size 0x%lx\n",
-	li.text_size, li.data_size, li.bss_size);
+        li.text_size, li.data_size, li.bss_size);
     TracePrintf(0, "entry 0x%lx\n", li.entry);
 
     /*
@@ -81,7 +81,7 @@ LoadProgram(char *name, char **args)
      */
     size = 0;
     for (i = 0; args[i] != NULL; i++) {
-	size += strlen(args[i]) + 1;
+	    size += strlen(args[i]) + 1;
     }
     argcount = i;
     TracePrintf(0, "LoadProgram: size %d, argcount %d\n", size, argcount);
@@ -92,8 +92,8 @@ LoadProgram(char *name, char **args)
      */
     cp = argbuf = (char *)malloc(size);
     for (i = 0; args[i] != NULL; i++) {
-	strcpy(cp, args[i]);
-	cp += strlen(cp) + 1;
+	    strcpy(cp, args[i]);
+	    cp += strlen(cp) + 1;
     }
   
     /*
@@ -122,12 +122,12 @@ LoadProgram(char *name, char **args)
      *  Make sure we will leave at least one page between heap and stack
      */
     if (MEM_INVALID_PAGES + text_npg + data_bss_npg + stack_npg +
-	1 + KERNEL_STACK_PAGES >= PAGE_TABLE_LEN) {
-	TracePrintf(0, "LoadProgram: program '%s' size too large for VM\n",
-	    name);
-	free(argbuf);
-	close(fd);
-	return (-1);
+    1 + KERNEL_STACK_PAGES >= PAGE_TABLE_LEN) {
+	    TracePrintf(0, "LoadProgram: program '%s' size too large for VM\n",
+	        name);
+    	free(argbuf);
+	    close(fd);
+	    return (-1);
     }
 
     /*

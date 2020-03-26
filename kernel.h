@@ -41,6 +41,8 @@ unsigned int tot_pmem_size;
 unsigned int tot_pmem_pages;
 void *cur_brk;
 
+char vmem_enabled;
+
 
 struct pte kernel_page_table[PAGE_TABLE_LEN];
 struct pte idle_page_table[PAGE_TABLE_LEN];
@@ -50,6 +52,7 @@ struct pte idle_page_table[PAGE_TABLE_LEN];
 struct process_info {
     unsigned int pid;
     struct pte *page_table;
+    unsigned int user_pages;    // Number of allocated pages (excluding kernel stack)
     SavedContext ctx;
     struct process_info *next_process;
 };

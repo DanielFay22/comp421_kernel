@@ -134,9 +134,7 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
 struct pte *get_new_page_table() {
     int i;
 
-    struct pte *table = (struct pte *)cur_brk;
-
-    SetKernelBrk((void *) (table + PAGE_TABLE_LEN));
+    struct pte *table = (struct pte *)malloc(sizeof(struct pte));
 
     for (i = 0; i < MEM_INVALID_PAGES; ++i)
         (table + i)->valid = 0;
@@ -198,8 +196,8 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     WriteRegister(REG_VECTOR_BASE, (RCS421RegVal) &interrupt_table);
 
     // Allocate a structure for storing the status of all physical pages.
-    free_pages = (struct free_page *)cur_brk;
-    cur_brk = UP_TO_PAGE(free_pages + (tot_pmem_pages));
+    free_pages = (struct free_page *)
+        malloc(sizeof(struct free_page) * tot_pmem_pages);//cur_brk;
 
     for (i = VMEM_1_BASE / PAGESIZE; i < (long)cur_brk / PAGESIZE; ++i) {
         (free_pages + i)->in_use = 1;
@@ -281,7 +279,9 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
     struct process_info idle = {
         .pid = 0,
+        .user_pages = 1,
         .page_table = idle_page_table,
+        .ctx = NULL,
         .next_process = NULL
     };
 
@@ -295,6 +295,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     //  -hash table with Pid as key
 
     WriteRegister(REG_VM_ENABLE, 1);
+    vmem_enabled = 1;
 
     // Set the PC and SP of active process (idle process)
     info->pc = (void *)&idle_process;
@@ -307,6 +308,12 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
 
 int SetKernelBrk(void *addr) {
+    TracePrintf(1, "SetKernelBrk\n");
+
+    if (vmem_enabled == 0) {
+        cur_brk = addr;
+    }
+
     return 0;
 }
 

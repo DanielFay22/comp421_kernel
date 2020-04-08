@@ -155,10 +155,10 @@ struct pte *get_new_page_table() {
     int i;
 
     struct pte *table = (struct pte *)malloc(sizeof(struct pte));
+    //struct pte *table = (struct pte *)malloc(sizeof(struct pte));
 
     for (i = 0; i < MEM_INVALID_PAGES; ++i)
         (table + i)->valid = 0;
-
 
 
     // TODO: allocate and initializing a new page table
@@ -199,6 +199,8 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     void *orig_brk, char **cmd_args) {
     int i;
 
+    printf("hello\n");
+
     tot_pmem_size = pmem_size;
     tot_pmem_pages = pmem_size / PAGESIZE;
     cur_brk = orig_brk;
@@ -219,6 +221,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     free_pages = (struct free_page *)
         malloc(sizeof(struct free_page) * tot_pmem_pages);//cur_brk;
 
+    // Mark Physical Pages used by heap as used
     for (i = VMEM_1_BASE / PAGESIZE; i < (long)cur_brk / PAGESIZE; ++i) {
         (free_pages + i)->in_use = 1;
         ++allocated_pages;
@@ -238,6 +241,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         kernel_page_table[i] = entry;
     }
 
+    // Initialize kernel heap
     int heap_pages = ((long)cur_brk - (long)&_etext) / PAGESIZE;
     for (i = text_pages; i < text_pages + heap_pages; i++) {
         struct pte entry = {
@@ -314,11 +318,13 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
     processes = idle;
 
-
     // enable virtual memory
     WriteRegister(REG_VM_ENABLE, 1);
     vmem_enabled = 1;
 
+    struct pte *init_page_table = get_new_page_table();
+    //TracePrintf(0, "%p\n", (void*)region_0);
+    //TracePrintf(0, "%p\n" , (void*)VMEM_1_BASE);
     active_process = idle;
 
     // Set the PC and SP of active process
@@ -338,6 +344,26 @@ int SetKernelBrk(void *addr) {
         cur_brk = addr;
     } else {
         // TODO: allocate more pages of vmem
+
+        //if requested memory is still within last allocated page
+        if ((long)UP_TO_PAGE(cur_brk) > (long)addr) {
+            cur_brk = addr;
+        }
+        //else allocate more physical pages
+        else {
+            cur_brk = (void*)UP_TO_PAGE(cur_brk);
+            while((long)addr > (long)UP_TO_PAGE(cur_brk)) {
+                struct pte entry = {
+                    .pfn = alloc_page(),
+                    .unused = 0b00000,
+                    .uprot = PROT_NONE,
+                    .kprot = PROT_READ | PROT_WRITE,
+                    .valid = 0b1
+                };
+                kernel_page_table[(long)cur_brk / PAGESIZE] = entry;
+                cur_brk = cur_brk + PAGESIZE;
+            }
+        }
     }
 
     return 0;

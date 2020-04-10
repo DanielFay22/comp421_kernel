@@ -17,7 +17,7 @@ void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo);
 void trap_tty_receive_handler(ExceptionInfo *exceptionInfo);
 
 void idle_process(void);
-
+void init_process(void);
 
 
 void (*interrupt_table[TRAP_VECTOR_SIZE])(ExceptionInfo *) = {NULL};
@@ -153,13 +153,39 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
 
 struct pte *get_new_page_table() {
     int i;
-
-    struct pte *table = (struct pte *)malloc(sizeof(struct pte));
+    //TODO don't know if this is necessary
+    
+    struct pte *table = (struct pte *)malloc(sizeof(struct pte) * PAGE_TABLE_LEN);
+    
     //struct pte *table = (struct pte *)malloc(sizeof(struct pte));
 
     for (i = 0; i < MEM_INVALID_PAGES; ++i)
         (table + i)->valid = 0;
 
+    for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
+        struct pte entry = {
+            .pfn = alloc_page(),
+            .unused = 0b00000,
+            .uprot = PROT_NONE,
+            .kprot = PROT_READ | PROT_WRITE,
+            .valid = 0b1
+        };
+
+        *(table + KERNEL_STACK_BASE / PAGESIZE + i) = entry;
+    }
+
+    // Initialize user stack
+    struct pte entry = {
+        .pfn = alloc_page(),
+        .unused = 0,
+        .uprot = PROT_READ | PROT_WRITE,
+        .kprot = PROT_READ | PROT_WRITE,
+        .valid = 1
+    };
+
+
+    (table + USER_STACK_LIMIT / PAGESIZE)->valid = 0;
+    *(table + USER_STACK_LIMIT / PAGESIZE - 1) = entry;
 
     // TODO: allocate and initializing a new page table
     return table;
@@ -197,9 +223,8 @@ int free_page(int pfn) {
 
 void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     void *orig_brk, char **cmd_args) {
+    //test with ./yalnix -lk 0 -lu 0 -n -s init1
     int i;
-
-    printf("hello\n");
 
     tot_pmem_size = pmem_size;
     tot_pmem_pages = pmem_size / PAGESIZE;
@@ -221,11 +246,18 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     free_pages = (struct free_page *)
         malloc(sizeof(struct free_page) * tot_pmem_pages);//cur_brk;
 
+    // Initial Region 0 (idle) Page Table, always at the top of VMEM
+    struct pte *idle_page_table = (struct pte *)(VMEM_LIMIT - PAGESIZE); 
+
     // Mark Physical Pages used by heap as used
     for (i = VMEM_1_BASE / PAGESIZE; i < (long)cur_brk / PAGESIZE; ++i) {
         (free_pages + i)->in_use = 1;
         ++allocated_pages;
     }
+
+    // Mark physical page used by idle_page_table
+    (free_pages + VMEM_LIMIT / PAGESIZE -  1)->in_use = 1;
+    ++allocated_pages;
 
     // Initialize kernel page table
     long end_text = (long)&_etext;
@@ -255,7 +287,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     }
     
     int k_unused_pages = (VMEM_LIMIT - (long)cur_brk) / PAGESIZE;
-    for (i = text_pages + heap_pages; i < text_pages + heap_pages + k_unused_pages; i++) {
+    for (i = text_pages + heap_pages; i < text_pages + heap_pages + k_unused_pages - 1; i++) {
         struct pte entry = {
             .pfn = (VMEM_1_BASE + i * PAGESIZE) >> PAGESHIFT,
             .unused = 0b00000,
@@ -266,6 +298,18 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
         kernel_page_table[i] = entry;
     }
+
+    //special entry for region 0 page table
+    TracePrintf(0, "%p\n", (void*)VMEM_LIMIT - PAGESIZE);
+    struct pte region_0_entry = {
+        .pfn = (VMEM_LIMIT - PAGESIZE) >> PAGESHIFT,
+        .unused = 0b00000,
+        .uprot = PROT_NONE,
+        .kprot = PROT_READ | PROT_WRITE,
+        .valid = 0b1
+    };
+    kernel_page_table[PAGE_TABLE_LEN - 1] = region_0_entry;
+    
 
     // Initialize Region 0
     for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
@@ -283,22 +327,11 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         idle_page_table[KERNEL_STACK_BASE / PAGESIZE + i] = entry;
     }
 
-    // Initialize user stack
-    struct pte entry = {
-        .pfn = alloc_page(),
-        .unused = 0,
-        .uprot = PROT_READ | PROT_WRITE,
-        .kprot = PROT_READ | PROT_WRITE,
-        .valid = 1
-    };
-
-    idle_page_table[USER_STACK_LIMIT / PAGESIZE].valid = 0;
-    idle_page_table[USER_STACK_LIMIT / PAGESIZE - 1] = entry;
-
-    for (i = 0; i < PAGE_TABLE_LEN - KERNEL_STACK_PAGES - 2; i++)
+    for (i = 0; i < PAGE_TABLE_LEN - KERNEL_STACK_PAGES - 1; i++) {
         idle_page_table[i].valid = 0;
+    }
 
-    WriteRegister(REG_PTR0, (RCS421RegVal) &idle_page_table);
+    WriteRegister(REG_PTR0, (RCS421RegVal) idle_page_table);
     WriteRegister(REG_PTR1, (RCS421RegVal) &kernel_page_table);
 
     // TODO: structure associating Pid's with page tables
@@ -308,28 +341,61 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     struct process_info *idle = malloc(sizeof(struct process_info));
     *idle = (struct process_info){
         .pid = 0,
-        .user_pages = 1,
+        .user_pages = 0,
         .page_table = idle_page_table,
-        .pc = (void *)&idle_process,
-        .sp = (void *)USER_STACK_LIMIT,
+        .pc = NULL,
+        .sp = NULL,
         .ctx = NULL,
         .next_process = NULL
     };
 
-    processes = idle;
+    // processes = idle;
 
     // enable virtual memory
     WriteRegister(REG_VM_ENABLE, 1);
     vmem_enabled = 1;
 
-    struct pte *init_page_table = get_new_page_table();
-    //TracePrintf(0, "%p\n", (void*)region_0);
-    //TracePrintf(0, "%p\n" , (void*)VMEM_1_BASE);
     active_process = idle;
+    LoadProgram("idle", NULL, info);
 
-    // Set the PC and SP of active process
-    info->pc = active_process->pc;
-    info->sp = active_process->sp;
+    //set the idle pc and sp
+    active_process->pc = info->pc;
+    active_process->sp = info->sp;
+
+    // Setup init process
+    struct process_info *init = malloc(sizeof(struct process_info));
+    *init = (struct process_info) {
+        .pid = 1,
+        .user_pages = 0,
+        .page_table = alloc_page(),
+        .pc = NULL,
+        .sp = NULL,
+        .ctx = NULL,
+        .next_process = NULL
+    };
+    active_process = init;
+
+    //swap the idle process region 0 for the freshly allocated page for the init region 0 PT
+    kernel_page_table[PAGE_TABLE_LEN - 1].pfn = init->page_table;
+    struct pte *init_page_table = (struct pte *)(VMEM_LIMIT - PAGESIZE);
+
+    for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
+        struct pte entry = {
+            .pfn = (KERNEL_STACK_BASE >> PAGESHIFT) + i,
+            .unused = 0b00000,
+            .uprot = PROT_NONE,
+            .kprot = PROT_READ | PROT_WRITE,
+            .valid = 0b1
+        };
+
+        (free_pages + KERNEL_STACK_BASE / PAGESIZE + i)->in_use = 1;
+        ++allocated_pages;
+
+        init_page_table[KERNEL_STACK_BASE / PAGESIZE + i] = entry;
+    }
+
+
+    LoadProgram(cmd_args[0], NULL, info);
 
     process_queue = NULL;
 
@@ -343,7 +409,7 @@ int SetKernelBrk(void *addr) {
     if (vmem_enabled == 0) {
         cur_brk = addr;
     } else {
-        // TODO: allocate more pages of vmem
+        // TODO: test vmem allocation, malloc doesn't seem to call this after vmem enabled
 
         //if requested memory is still within last allocated page
         if ((long)UP_TO_PAGE(cur_brk) > (long)addr) {
@@ -368,14 +434,5 @@ int SetKernelBrk(void *addr) {
 
     return 0;
 }
-
-
-
-
-void idle_process(void) {
-    while (1)
-        Pause();
-}
-
 
 

@@ -82,20 +82,24 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      *  arguments, to become the argc that the new "main" gets called with.
      */
     size = 0;
-    for (i = 0; args[i] != NULL; i++) {
-	    size += strlen(args[i]) + 1;
-    }
-    argcount = i;
-    TracePrintf(0, "LoadProgram: size %d, argcount %d\n", size, argcount);
+    argcount = 0;
+    if (args != NULL) {
+        size = 0;
+        for (i = 0; args[i] != NULL; i++) {
+    	    size += strlen(args[i]) + 1;
+        }
+        argcount = i;
+        TracePrintf(0, "LoadProgram: size %d, argcount %d\n", size, argcount);
 
-    /*
-     *  Now save the arguments in a separate buffer in Region 1, since
-     *  we are about to delete all of Region 0.
-     */
-    cp = argbuf = (char *)malloc(size);
-    for (i = 0; args[i] != NULL; i++) {
-	    strcpy(cp, args[i]);
-	    cp += strlen(cp) + 1;
+        /*
+         *  Now save the arguments in a separate buffer in Region 1, since
+         *  we are about to delete all of Region 0.
+         */
+        cp = argbuf = (char *)malloc(size);
+        for (i = 0; args[i] != NULL; i++) {
+    	    strcpy(cp, args[i]);
+    	    cp += strlen(cp) + 1;
+        }
     }
   
     /*
@@ -117,7 +121,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     data_bss_npg = UP_TO_PAGE(li.data_size + li.bss_size) >> PAGESHIFT;
     stack_npg = (USER_STACK_LIMIT - DOWN_TO_PAGE(cpp)) >> PAGESHIFT;
 
-    TracePrintf(0, "LoadProgram: text_npg %d, data_bss_npg %d, stack_npg %d\n",
+    TracePrintf(10, "LoadProgram: text_npg %d, data_bss_npg %d, stack_npg %d\n",
 	text_npg, data_bss_npg, stack_npg);
 
     /*
@@ -138,7 +142,6 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      */
     int req_pages = text_npg + data_bss_npg + stack_npg
                     - active_process->user_pages;
-
     if (allocated_pages + req_pages > tot_pmem_pages) {
         TracePrintf(0,
             "LoadProgram: program '%s' size too large for physical memory\n",
@@ -151,21 +154,20 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     // Set stack pointer
     info->sp = (void *)cpp;
 
-
-    struct pte *page_table = active_process->page_table;
-
+    struct pte *page_table = (struct pte *)(VMEM_LIMIT - PAGESIZE);
+    //struct pte *page_table = active_process->page_table;
+    TracePrintf(0, "%p\n", page_table);
+    TracePrintf(1, "LoadProgram: erasing PT at %p\n", page_table);
     /*
      *  Free all the old physical memory belonging to this process,
      *  but be sure to leave the kernel stack for this process (which
      *  is also in Region 0) alone.
      */
-    for (i = 0; i < PAGE_TABLE_LEN - KERNEL_STACK_PAGES; ++i) {
-        if ((page_table + i)->valid == 1) {
-            free_page((page_table + i)->pfn);
-            (page_table + i)->valid = 0;
-        }
+    for (i = 1; i <= active_process->user_pages; ++i) {
+        free_page(((struct pte *)USER_STACK_LIMIT - i)->pfn);
+        ((struct pte *)(USER_STACK_LIMIT - (long)i))->valid = 0;
     }
-
+    TracePrintf(10, "LoadProgram: freeded stack from PT at %p\n", page_table);
 
     /*
      *  Fill in the page table with the right number of text,
@@ -177,6 +179,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     /* First, the text pages */
     for (i = MEM_INVALID_PAGES; i < MEM_INVALID_PAGES + text_npg; ++i) {
+        TracePrintf(10, "text pages %p\n", page_table + i);
         *(page_table + i) = (struct pte){
             .valid = 1,
             .kprot = PROT_READ | PROT_WRITE,
@@ -212,17 +215,18 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      *  we'll be able to do the read() into the new pages below.
      */
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
+    TracePrintf(10, "flushed tlb\n");
 
     /*
      *  Read the text and data from the file into memory.
      */
     if (read(fd, (void *)MEM_INVALID_SIZE, li.text_size+li.data_size) != li.text_size+li.data_size) {
-        TracePrintf(0, "LoadProgram: couldn't read for '%s'\n", name);
+        TracePrintf(10, "LoadProgram: couldn't read for '%s'\n", name);
         free(argbuf);
         close(fd);
     	return (-2);
     }
-
+    TracePrintf(10, "read\n");
     close(fd);			/* we've read it all now */
 
     /*
@@ -232,20 +236,21 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     for (i = MEM_INVALID_PAGES; i < MEM_INVALID_PAGES + text_npg; ++i)
         (page_table + i)->kprot = PROT_READ | PROT_EXEC;
 
+    TracePrintf(10,"text prots set\n");
 
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
-
+    TracePrintf(10,"flushed again\n");
     /*
      *  Zero out the bss
      */
     memset((void *)(MEM_INVALID_SIZE + li.text_size + li.data_size),
         '\0', li.bss_size);
-
+    TracePrintf(10,"zerod out bss\n");
     /*
      *  Set the entry point in the exception frame.
      */
     info->pc = (void *)li.entry;
-
+    TracePrintf(10, "set pc to %p\n", (void*) li.entry);
     /*
      *  Now, finally, build the argument list on the new stack.
      */
@@ -257,7 +262,9 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 	    cp += strlen(cp) + 1;
 	    cp2 += strlen(cp2) + 1;
     }
-    free(argbuf);
+    TracePrintf(10, "argv set\n");
+    if (argcount > 0)
+        free(argbuf);
     *cpp++ = NULL;	/* the last argv is a NULL pointer */
     *cpp++ = NULL;	/* a NULL pointer for an empty envp */
     *cpp++ = 0;		/* and terminate the auxiliary vector */
@@ -271,6 +278,6 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     for (i = 0; i < NUM_REGS; ++i)
         info->regs[i] = 0;
     info->psr = 0;
-
+    TracePrintf(10, "PSR set\n");
     return (0);
 }

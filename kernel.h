@@ -60,7 +60,8 @@ int allocated_pages;
 
 #define MAX_CLOCK_TICKS 2
 
-unsigned int active_clock_count;
+unsigned int clock_count;
+unsigned int last_switch;
 
 
 #endif

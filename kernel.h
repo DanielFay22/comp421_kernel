@@ -35,7 +35,6 @@ char vmem_enabled;
 
 
 struct pte kernel_page_table[PAGE_TABLE_LEN];
-struct pte idle_page_table[PAGE_TABLE_LEN];
 
 
 

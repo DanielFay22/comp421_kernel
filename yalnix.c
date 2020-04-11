@@ -85,11 +85,11 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
         active_process->pid);
 
     // If any processes are available, switch to them.
-    if (++active_clock_count >= 2 && process_queue != NULL) {
+    if (last_switch - (++clock_count) >= 2 && process_queue != NULL) {
         struct process_info *next = process_queue;
         process_queue = process_queue->next_process;
 
-        active_clock_count = 0;
+        last_switch = clock_count;
 
         // ContextSwitch(ContextSwitchFunc, &active_process->ctx,
         //     (void *)active_process, (void *)next);

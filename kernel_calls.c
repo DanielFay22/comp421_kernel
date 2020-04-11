@@ -32,6 +32,13 @@ int Brk(void *addr) {
 }
 
 int Delay(int clock_ticks) {
+
+    if (clock_ticks < 0)
+        return ERROR;
+
+    while (clock_ticks-- > 0)
+        Pause();
+
     return 0;
 }
 

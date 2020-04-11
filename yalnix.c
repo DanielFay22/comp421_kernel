@@ -178,6 +178,8 @@ SavedContext *ContextSwitchOne(SavedContext *ctxp,
     WriteRegister(REG_PTR0, (RCS421RegVal) init_page_table);
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
 
+    active_process = (struct pte *) p1;
+
     return ctxp;
 }
 
@@ -409,21 +411,19 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .user_pages = 0,
         .page_table = VMEM_LIMIT / PAGESIZE - 2,
     };
-    active_process = init;
     
-    ContextSwitch(ContextSwitchOne, (SavedContext *)&idle->ctx, NULL, NULL);
-
+    ContextSwitch(ContextSwitchOne, (SavedContext *)&idle->ctx, init, NULL);
     //WriteRegister(REG_PTR0, (RCS421RegVal) (active_process->page_table << PAGESHIFT) );
 
-    TracePrintf(0, "%p\n", (void *) ((long)(active_process->page_table) << PAGESHIFT) );
-    
-    LoadProgram(cmd_args[0], NULL, info);
+    if (GetPid()) {
+        TracePrintf(0, "%p\n", (void *) ((long)(active_process->page_table) << PAGESHIFT) );
+        
+        LoadProgram(cmd_args[0], NULL, info);
 
-    active_process->pc = info->pc;
-    active_process->sp = info->sp;
-
+        active_process->pc = info->pc;
+        active_process->sp = info->sp;
+    }
     process_queue = NULL;
-
 
 }
 

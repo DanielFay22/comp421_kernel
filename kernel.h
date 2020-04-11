@@ -14,7 +14,7 @@
 
 
 
-extern int alloc_page(void);
+extern unsigned int alloc_page(void);
 extern int free_page(int pfn);
 
 extern SavedContext *ContextSwitchFunc(SavedContext *, void *, void *);
@@ -35,12 +35,13 @@ char vmem_enabled;
 
 
 struct pte kernel_page_table[PAGE_TABLE_LEN];
+//struct pte idle_page_table[PAGE_TABLE_LEN];
 
 
 
 struct process_info {
     unsigned int pid;
-    struct pte *page_table;
+    unsigned int page_table;
     unsigned int user_pages;    // Number of allocated pages (excluding kernel stack)
     void *pc;
     void *sp;

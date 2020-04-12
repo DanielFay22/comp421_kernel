@@ -33,19 +33,14 @@ int Delay(int clock_ticks) {
 	TracePrintf(0, "hello from delay from active process %d\n", active_process->pid);
     if (clock_ticks < 0)
         return ERROR;
+    else if (clock_ticks == 0)
+        return 0;
+
     active_process->delay_ticks = clock_ticks;
-    if (waiting_queue != NULL) {
-    	TracePrintf(0, "adding to waiting_queue\n");
-    	wq_tail->next_process = active_process;
-    	wq_tail = wq_tail->next_process;
-    }
-    else {
-    	TracePrintf(0, "starting waiting_queue\n");
-    	wq_tail = active_process;
-    	waiting_queue = active_process;
-    }
+    push_process(&waiting_queue, &wq_tail, active_process);
+
     if (process_queue != NULL) {
-    	struct process_info *next = process_queue;
+    	struct process_info *next = pop_process(&process_queue, &pq_tail);
     	ContextSwitch(ContextSwitchFunc, &active_process->ctx,
             (void *)active_process, (void *)next);
     }

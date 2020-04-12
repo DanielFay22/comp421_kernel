@@ -85,66 +85,37 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
         active_process->pid);
 
     struct process_info* temp;
-    struct process_info* head = waiting_queue;
-    while (waiting_queue != NULL) {
-        TracePrintf(1, "decrementing waiting_queue process %d\n", waiting_queue->pid);
-        waiting_queue->delay_ticks--;
-        TracePrintf(1, "new value %d\n", waiting_queue->delay_ticks);
-        if (waiting_queue->delay_ticks < 1) {
-            TracePrintf(0, "process %d unblocking\n", waiting_queue->pid);
-            if (waiting_queue->prev_process != NULL || waiting_queue->next_process != NULL){
-                //middle
-                if (waiting_queue->prev_process != NULL && waiting_queue->next_process != NULL) {
-                    (waiting_queue->prev_process)->next_process = waiting_queue->next_process;
-                    (waiting_queue->next_process)->prev_process = waiting_queue->prev_process;
-                }
-                //head
-                else if (waiting_queue->prev_process == NULL) {
-                    (waiting_queue->next_process)->prev_process = NULL; 
-                    head = waiting_queue->next_process;
-                }
-                //tail
-                else {
-                    (waiting_queue->prev_process)->next_process = NULL;
-                }
-                temp = waiting_queue;
-                waiting_queue = waiting_queue->next_process;
 
-            }
-            else {
-                TracePrintf(0, "set waiting_queue to null\n");
-                temp = waiting_queue;
-                waiting_queue = NULL;
-                head = NULL;
-            }
-            if (process_queue == NULL) {
-                TracePrintf(0, "point to new pq\n");
-                process_queue = temp;
-                pq_tail = temp;
-            }
-            else {
-                TracePrintf(0, "adding to pq\n");
-                pq_tail->next_process = temp;
-                TracePrintf(0, "setting prev to new entry\n");
-                temp->prev_process = pq_tail;
-                TracePrintf(0, "setting next to null\n");
-                temp->next_process = NULL;
-                TracePrintf(0, "pointing tail to new\n");
-                pq_tail = temp;
-            }
+    // Decrement all waiting processes and move any completed
+    // processes onto the ready queue.
+    struct process_info *waiting_process = waiting_queue;
+    while (waiting_process != NULL) {
+        TracePrintf(1, "decrementing waiting_process process %d\n", waiting_process->pid);
+        waiting_process->delay_ticks--;
+        TracePrintf(1, "new value %d\n", waiting_process->delay_ticks);
+
+        if (waiting_process->delay_ticks < 1) {
+            TracePrintf(0, "process %d unblocking\n", waiting_process->pid);
+
+            // Remove process from waiting queue
+            remove_process(&waiting_queue, &wq_tail, waiting_process);
+
+            // Push process onto process queue
+            push_process(&process_queue, &pq_tail, waiting_process);
+
         }
         else {
-            waiting_queue = waiting_queue->next_process;
+            waiting_process = waiting_process->next_process;
         }
     }
-    waiting_queue = head;
+
     // If any processes are available, switch to them.
     TracePrintf(0, "pq before switch %p\n", (void*)process_queue);
     if (last_switch - (++clock_count) <= -2 && process_queue != NULL) {
-        struct process_info *next = process_queue;
-        TracePrintf(1, "attempting switch from pid %d to pid %d\n"), GetPid(), next->pid;
-        process_queue = process_queue->next_process;
-        TracePrintf(0, "pq incremented %p\n", (void*)process_queue);
+        struct process_info *next = pop_process(&process_queue, &pq_tail);
+
+        TracePrintf(0, "Popped process %d off queue\n", next->pid);
+
         last_switch = clock_count;
 
         ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
@@ -198,7 +169,8 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     active_process = newProc;
 
     // Set region 0 page table to new process table
-    TracePrintf(0, "writing new region 0 PT addr %p", (void *)((newProc->page_table) << PAGESHIFT));
+    TracePrintf(0, "writing new region 0 PT addr %p\n",
+        (void *)((newProc->page_table) << PAGESHIFT));
     WriteRegister(REG_PTR0, (RCS421RegVal) ((newProc->page_table) << PAGESHIFT));
 
     // Flush region 0 entries from the TLB
@@ -310,6 +282,82 @@ int free_page(int pfn) {
     return 0;
 }
 
+
+// Add a new pcb to the given queue
+void push_process(struct process_info **head, struct process_info **tail,
+    struct process_info *new_pcb) {
+
+    TracePrintf(0, "new_pcb = %x\n", new_pcb);
+
+    TracePrintf(0, "Pushing process %d onto PQ\n", new_pcb->pid);
+
+    if (*head == NULL) {
+        *head = new_pcb;
+        *tail = new_pcb;
+
+        new_pcb->next_process = NULL;
+        new_pcb->prev_process = NULL;
+    } else {
+        (*tail)->next_process = new_pcb;
+
+        new_pcb->next_process = NULL;
+        new_pcb->prev_process = *tail;
+
+        *tail = new_pcb;
+    }
+}
+
+// Pop the next process off the given queue
+struct process_info *pop_process(
+    struct process_info **head, struct process_info **tail) {
+
+    TracePrintf(0, "Popping process off of queue\n");
+    
+    struct process_info *new_head = *head;
+
+    if (new_head != NULL) {
+        *head = new_head->next_process;
+        new_head->next_process = NULL;
+    }
+
+    if (*head != NULL)
+        (*head)->prev_process = NULL;
+
+
+    TracePrintf(0, "Popping process %d off PQ\n", new_head->pid);
+
+    return new_head;
+}
+
+// Remove a pcb from whatever queue it is part of
+void remove_process(struct process_info **head, struct process_info **tail, 
+    struct process_info *pi) {
+
+//    TracePrintf(0, "Remove process: head address = %x, tail address = %x\n",
+//                (unsigned int)*head, (unsigned int)*tail);
+//    TracePrintf(0, "Remove process: pi = %x\n", (unsigned int)pi);
+//    TracePrintf(0, "Remove process: pi.next_process = %x, pi.prev_process = %x\n",
+//                (unsigned int)pi->next_process, (unsigned int)pi->prev_process);
+    
+    // If pi is head or tail, update accordingly.
+    if (*head == pi)
+        *head = pi->next_process;
+    if (*tail == pi)
+        *tail = pi->prev_process;
+    
+    // Remove pi from linked list
+    if (pi->prev_process != NULL)
+        pi->prev_process->next_process = pi->next_process;
+    
+    if (pi->next_process != NULL)
+        pi->next_process->prev_process = pi->prev_process;
+    
+    pi->prev_process = NULL;
+    pi->next_process = NULL;
+
+    TracePrintf(0, "Removing process %d from queue\n", pi->pid);
+    
+}
 
 void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     void *orig_brk, char **cmd_args) {

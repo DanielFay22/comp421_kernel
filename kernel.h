@@ -13,6 +13,9 @@
 #endif
 
 
+#define NULL 0
+
+
 
 extern unsigned int alloc_page(void);
 extern int free_page(int pfn);
@@ -69,6 +72,15 @@ int allocated_pages;
 
 unsigned int clock_count;
 unsigned int last_switch;
+
+
+
+void push_process(struct process_info **head, struct process_info **tail,
+                  struct process_info *new_pcb);
+struct process_info *pop_process(
+    struct process_info **head, struct process_info **tail);
+void remove_process(struct process_info **head, struct process_info **tail,
+                    struct process_info *pi);
 
 
 #endif

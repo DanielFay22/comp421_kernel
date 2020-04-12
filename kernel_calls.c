@@ -45,8 +45,8 @@ int Delay(int clock_ticks) {
             (void *)active_process, (void *)next);
     }
     else {
-    	TracePrintf(1, "attempting switch from pid %d to pid %d\n"), active_process->pid, idle->pid;
-    	TracePrintf(1, "%p\n", (void*)(idle->page_table << PAGESHIFT));
+    	TracePrintf(1, "Switching from pid %d to idle process\n",
+    	    active_process->pid, idle->pid);
     	ContextSwitch(ContextSwitchFunc, &active_process->ctx,
     		(void*)active_process, (void*)idle);
     }

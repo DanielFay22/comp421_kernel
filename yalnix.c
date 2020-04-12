@@ -118,6 +118,10 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
 
         last_switch = clock_count;
 
+        // If active process is not idle, return it to the queue.
+        if (active_process->pid != idle->pid)
+            push_process(&process_queue, &pq_tail, active_process);
+
         ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
             (void *)active_process, (void *)next);
     }
@@ -156,15 +160,6 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     struct process_info *newProc = (struct process_info *)p2;
 
     curProc->ctx = *ctxp;
-
-    // The pids are getting screwed up for some reason
-    // If the running process is not the idle process, put it back on the queue.
-    // if (curProc->pid != 0) {
-    //     if (process_queue == NULL)
-    //         process_queue = curProc;
-    //     else
-    //         process_queue->next_process = curProc;
-    //}
 
     active_process = newProc;
 

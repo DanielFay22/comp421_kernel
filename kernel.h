@@ -13,10 +13,6 @@
 #endif
 
 
-#define NULL 0
-
-
-
 extern unsigned int alloc_page(void);
 extern int free_page(int pfn);
 

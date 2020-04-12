@@ -41,17 +41,24 @@ struct pte kernel_page_table[PAGE_TABLE_LEN];
 
 struct process_info {
     unsigned int pid;
+    unsigned int delay_ticks;
     unsigned int page_table;
     unsigned int user_pages;    // Number of allocated pages (excluding kernel stack)
     void *pc;
     void *sp;
     SavedContext ctx;
     struct process_info *next_process;
+    struct process_info *prev_process;
 };
 
+struct process_info *idle;
 struct process_info *processes;
 struct process_info *active_process;
 struct process_info *process_queue;
+struct process_info *pq_tail;
+
+struct process_info *waiting_queue;
+struct process_info *wq_tail;
 
 
 int allocated_pages;

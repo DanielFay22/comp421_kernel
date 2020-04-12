@@ -39,12 +39,12 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     char *cp2;
     char **cpp;
     char *argbuf;
-    int i;
     unsigned long argcount;
     int size;
     int text_npg;
     int data_bss_npg;
     int stack_npg;
+    int i;
 
     TracePrintf(0, "LoadProgram '%s', args %p\n", name, args);
 
@@ -85,6 +85,8 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     argcount = 0;
     if (args != NULL) {
         size = 0;
+        //can't use i
+        TracePrintf(0, "%s\n", args[i]);
         for (i = 0; args[i] != NULL; i++) {
     	    size += strlen(args[i]) + 1;
         }
@@ -129,7 +131,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      */
     if (MEM_INVALID_PAGES + text_npg + data_bss_npg + stack_npg +
     1 + KERNEL_STACK_PAGES >= PAGE_TABLE_LEN) {
-	    TracePrintf(0, "LoadProgram: program '%s' size too large for VM\n",
+	    TracePrintf(0, "LoadProgram: program '%s' size %d too large for VM\n",
 	        name);
     	free(argbuf);
 	    close(fd);
@@ -190,6 +192,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     /* Then the data and bss pages */
     for (; i < MEM_INVALID_PAGES + text_npg + data_bss_npg; ++i) {
+        TracePrintf(10, "data/bss pages %p\n", page_table + i);
         *(page_table + i) = (struct pte){
             .valid = 1,
             .kprot = PROT_READ | PROT_WRITE,
@@ -201,6 +204,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     /* And finally the user stack pages */
     for (i = 1; i <= stack_npg; ++i) {
+        TracePrintf(10, "user stack pages %p\n", page_table + i);
         *(page_table + USER_STACK_LIMIT / PAGESIZE - i) = (struct pte){
             .valid = 1,
             .kprot = PROT_READ | PROT_WRITE,
@@ -208,7 +212,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
             .pfn = alloc_page()
         };
     }
-
+    TracePrintf(10, "done with pages\n");
     /*
      *  All pages for the new address space are now in place.  Flush
      *  the TLB to get rid of all the old PTEs from this process, so

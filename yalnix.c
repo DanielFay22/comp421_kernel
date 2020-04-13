@@ -529,7 +529,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     if (GetPid()) {
         TracePrintf(0, "init exiting kernelstart\n");
         active_process = init;
-        LoadProgram(cmd_args[0], &cmd_args[1], info);
+        LoadProgram(cmd_args[0], &cmd_args[0], info);
     }
     else {
         TracePrintf(0, "idle exiting kernelstart\n");

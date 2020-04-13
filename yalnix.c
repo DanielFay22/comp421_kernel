@@ -540,7 +540,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
 
 int SetKernelBrk(void *addr) {
-    TracePrintf(1, "SetKernelBrk\n");
+    TracePrintf(0, "SetKernelBrk - addr = %x\n", (unsigned long)addr);
 
     if (vmem_enabled == 0) {
         cur_brk = addr;
@@ -553,17 +553,27 @@ int SetKernelBrk(void *addr) {
         }
         //else allocate more physical pages
         else {
-            cur_brk = (void*)UP_TO_PAGE(cur_brk);
-            while((long)addr > (long)UP_TO_PAGE(cur_brk)) {
-                struct pte entry = {
-                    .pfn = alloc_page(),
-                    .unused = 0b00000,
-                    .uprot = PROT_NONE,
-                    .kprot = PROT_READ | PROT_WRITE,
-                    .valid = 0b1
-                };
-                kernel_page_table[(long)cur_brk / PAGESIZE] = entry;
-                cur_brk = cur_brk + PAGESIZE;
+
+            // TODO: handle decreasing heap size
+            if (addr < cur_brk)
+                return 0;
+            else {
+                while ((long) addr > (long) UP_TO_PAGE(cur_brk)) {
+
+                    // Allocate a page frame and assign it to the page table
+                    long pte_offset = (long)(cur_brk - VMEM_1_BASE) / PAGESIZE;
+                    kernel_page_table[pte_offset] =
+                        (struct pte){
+                        .pfn = alloc_page(),
+                        .unused = 0b00000,
+                        .uprot = PROT_NONE,
+                        .kprot = PROT_READ | PROT_WRITE,
+                        .valid = 0b1
+                    };
+
+                    // Increment cur_brk by one page
+                    cur_brk = cur_brk + PAGESIZE;
+                }
             }
         }
     }

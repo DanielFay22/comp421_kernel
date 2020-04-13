@@ -12,6 +12,8 @@
 
 #endif
 
+unsigned int next_pid;
+
 
 extern unsigned int alloc_page(void);
 extern int free_page(int pfn);
@@ -41,7 +43,7 @@ struct pte kernel_page_table[PAGE_TABLE_LEN];
 struct process_info {
     unsigned int pid;
     unsigned int delay_ticks;
-    unsigned int page_table;
+    void *page_table;
     unsigned int user_pages;    // Number of allocated pages (excluding kernel stack)
     void *pc;
     void *sp;

@@ -23,7 +23,7 @@ void init_process(void);
 void (*interrupt_table[TRAP_VECTOR_SIZE])(ExceptionInfo *) = {NULL};
 
 
-
+// Interrupt handlers
 void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 
     switch (exceptionInfo->code) {
@@ -164,9 +164,8 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     active_process = newProc;
 
     // Set region 0 page table to new process table
-    TracePrintf(0, "writing new region 0 PT addr %p\n",
-        (void *)((newProc->page_table) << PAGESHIFT));
-    WriteRegister(REG_PTR0, (RCS421RegVal) ((newProc->page_table) << PAGESHIFT));
+    TracePrintf(0, "writing new region 0 PT addr %p\n", newProc->page_table);
+    WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
 
     // Flush region 0 entries from the TLB
     WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
@@ -496,11 +495,11 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     // Setup idle process
     TracePrintf(0, "assign idle PCB\n");
     idle = malloc(sizeof(struct process_info));
-    TracePrintf(0, "%p\n", (void*)((long)idle_page_table >> PAGESHIFT));
+    TracePrintf(0, "%p\n", idle_page_table);
     *idle = (struct process_info){
-        .pid = 0,
+        .pid = next_pid++,
         .user_pages = 0,
-        .page_table = ((unsigned int)idle_page_table) >> PAGESHIFT,
+        .page_table = (void *)idle_page_table,
         .pc = NULL,
         .sp = NULL,
         .ctx = NULL,
@@ -518,12 +517,12 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     // Setup init process
     struct process_info *init = malloc(sizeof(struct process_info));
     *init = (struct process_info) {
-        .pid = 1,
+        .pid = next_pid++,
         .user_pages = 0,
-        .page_table = VMEM_LIMIT / PAGESIZE - 2,
+        .page_table = (void *)(VMEM_LIMIT - 2 * PAGESIZE),
         .delay_ticks = 0
     };
-    
+
     ContextSwitch(ContextSwitchOne, (SavedContext *)&idle->ctx, init, NULL);
     //WriteRegister(REG_PTR0, (RCS421RegVal) (active_process->page_table << PAGESHIFT) );
 

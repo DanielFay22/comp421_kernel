@@ -6,20 +6,24 @@
 
 SavedContext *ForkContextSwitchHelper(SavedContext *ctxp,
     void *p1, void *p2) {
+    int i;
 
     struct process_info *curProc = (struct process_info *)p1;
-    struct process_info *newProc = (struct process_info *)p2;
-
     curProc->ctx = *ctxp;
 
-    active_process = newProc;
 
-    // Set region 0 page table to new process table
-    TracePrintf(0, "writing new region 0 PT addr %p\n", newProc->page_table);
-    WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
+    // Copy kernel stack
+    void *temp = VMEM_1_LIMIT - 3 * PAGESIZE;
+    for (i = PAGE_TABLE_LEN - KERNEL_STACK_PAGES; i < PAGE_TABLE_LEN; ++i) {
+        kernel_page_table[PAGE_TABLE_LEN - 3].pfn =
+            (new_table_base + i)->pfn;
 
-    // Flush region 0 entries from the TLB
-    WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
+        WriteRegister(REG_TLB_FLUSH, (RCS421RegVal)temp);
+
+        TracePrintf(0, "Calling memcpy, %x, %x\n", (unsigned int)temp,
+                    (unsigned int)(VMEM_0_BASE + i * PAGESIZE));
+        memcpy(temp, (const void *)(VMEM_0_BASE + i * PAGESIZE), PAGESIZE);
+    }
 
     return ctxp;
 }
@@ -87,7 +91,7 @@ int Fork(void) {
     TracePrintf(0, "pfn = %u\n", kernel_page_table[PAGE_TABLE_LEN - 2].pfn);
 
     // Copy the old memory to the new memory
-    for (i = 0; i < PAGE_TABLE_LEN; ++i) {
+    for (i = 0; i < PAGE_TABLE_LEN - KERNEL_STACK_PAGES; ++i) {
 
 //        TracePrintf(0, "Page %d, valid = %d\n", i, (new_table_base + i)->valid);
 
@@ -128,17 +132,15 @@ int Fork(void) {
     pcb->page_table = (void *)new_page_table;
 
     TracePrintf(0, "Adding PCB to queue\n");
-    push_process(&process_queue, &pq_tail, active_process);
-
-    // Flush the region 0 TLB
-    // For some reason this is causing the PC to go to 0
-//    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
+    push_process(&process_queue, &pq_tail, pcb);
 
     TracePrintf(0, "Context switching to child\n");
     // Switch to the child process
-    ContextSwitch(ForkContextSwitchHelper, &(active_process->ctx),
-        (void *)active_process, (void *)pcb);
+    ContextSwitch(ForkContextSwitchHelper, &(pcb->ctx),
+        (void *)pcb, NULL);
 
+
+    TracePrintf(0, "Returning\n");
     // Return 0 if in calling process, new pid otherwise
     if (active_process->pid == pid)
         return 0;

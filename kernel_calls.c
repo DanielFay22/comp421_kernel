@@ -165,6 +165,25 @@ int GetPid(void) {
 }
 
 int Brk(void *addr) {
+    int i;
+    long new_brk = (long)UP_TO_PAGE(addr) / PAGESIZE;
+
+    if (new_brk > VMEM_LIMIT / PAGESIZE - 5) {
+        TracePrintf(0, "User heap attempting to grow into the User stack/redzone\n");
+        return ERROR;
+    }
+    
+    struct pte* page_table = (struct pte*)(VMEM_LIMIT - PAGESIZE);
+    for (i = MEM_INVALID_PAGES; i < VMEM_LIMIT / PAGESIZE - 5; i++) {
+        if (!page_table[i].valid) {
+            *(page_table + i) = (struct pte){
+                .valid = 1,
+                .kprot = PROT_READ | PROT_WRITE,
+                .uprot = PROT_READ | PROT_WRITE,
+                .pfn = alloc_page()
+            };
+        }
+    }
     return 0;
 }
 
@@ -184,8 +203,7 @@ int Delay(int clock_ticks) {
             (void *)active_process, (void *)next);
     }
     else {
-    	TracePrintf(1, "Switching from pid %d to idle process\n",
-    	    active_process->pid, idle->pid);
+    	TracePrintf(1, "Switching from pid %d to %d\n", active_process->pid, idle->pid);
     	ContextSwitch(ContextSwitchFunc, &active_process->ctx,
     		(void*)active_process, (void*)idle);
     }

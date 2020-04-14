@@ -20,6 +20,14 @@ void idle_process(void);
 void init_process(void);
 
 
+struct available_page_table {
+    void *page_table;
+    struct available_page_table *next;
+};
+
+struct available_page_table *page_tables = NULL;
+
+
 void (*interrupt_table[TRAP_VECTOR_SIZE])(ExceptionInfo *) = {NULL};
 
 
@@ -208,43 +216,79 @@ SavedContext *ContextSwitchOne(SavedContext *ctxp,
 }
 
 struct pte *get_new_page_table() {
-    int i;
-    //TODO don't know if this is necessary
-    
-    struct pte *table = (struct pte *)malloc(sizeof(struct pte) * PAGE_TABLE_LEN);
-    
-    //struct pte *table = (struct pte *)malloc(sizeof(struct pte));
+    void *page_table;
 
-    for (i = 0; i < MEM_INVALID_PAGES; ++i)
-        (table + i)->valid = 0;
+    // Check if there is an available allocated page table
+    if (page_tables != NULL) {
+        struct available_page_table *pt = page_tables;
+        page_tables = page_tables->next;
 
-    for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
-        struct pte entry = {
-            .pfn = alloc_page(),
-            .unused = 0b00000,
-            .uprot = PROT_NONE,
-            .kprot = PROT_READ | PROT_WRITE,
-            .valid = 0b1
-        };
 
-        *(table + KERNEL_STACK_BASE / PAGESIZE + i) = entry;
+        page_table = pt->page_table;
+        free(pt);
+
+
+    } else {
+        // Allocate a new page
+        unsigned int pfn = alloc_page();
+        struct available_page_table *pt_ptr = (struct available_page_table *)
+            malloc(sizeof(struct available_page_table));
+
+        // Add the extra half page to the free tables list
+        pt_ptr->page_table = (void *)(pfn << PAGESHIFT + PAGESIZE / 2);
+        pt_ptr->next = page_tables;
+        page_tables = pt_ptr;
+
+        page_table = (void *)(pfn << PAGESHIFT);
     }
 
-    // Initialize user stack
-    struct pte entry = {
-        .pfn = alloc_page(),
-        .unused = 0,
-        .uprot = PROT_READ | PROT_WRITE,
-        .kprot = PROT_READ | PROT_WRITE,
-        .valid = 1
-    };
-
-
-    (table + USER_STACK_LIMIT / PAGESIZE)->valid = 0;
-    *(table + USER_STACK_LIMIT / PAGESIZE - 1) = entry;
-
-    // TODO: allocate and initializing a new page table
-    return table;
+    return (struct pte *)page_table;
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//    int i;
+//    //TODO don't know if this is necessary
+//
+//    struct pte *table = (struct pte *)malloc(sizeof(struct pte) * PAGE_TABLE_LEN);
+//
+//    //struct pte *table = (struct pte *)malloc(sizeof(struct pte));
+//
+//    for (i = 0; i < MEM_INVALID_PAGES; ++i)
+//        (table + i)->valid = 0;
+//
+//    for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
+//        struct pte entry = {
+//            .pfn = alloc_page(),
+//            .unused = 0b00000,
+//            .uprot = PROT_NONE,
+//            .kprot = PROT_READ | PROT_WRITE,
+//            .valid = 0b1
+//        };
+//
+//        *(table + KERNEL_STACK_BASE / PAGESIZE + i) = entry;
+//    }
+//
+//    // Initialize user stack
+//    struct pte entry = {
+//        .pfn = alloc_page(),
+//        .unused = 0,
+//        .uprot = PROT_READ | PROT_WRITE,
+//        .kprot = PROT_READ | PROT_WRITE,
+//        .valid = 1
+//    };
+//
+//
+//    (table + USER_STACK_LIMIT / PAGESIZE)->valid = 0;
+//    *(table + USER_STACK_LIMIT / PAGESIZE - 1) = entry;
+//
+//    // TODO: allocate and initializing a new page table
+//    return table;
 }
 
 
@@ -552,6 +596,9 @@ int SetKernelBrk(void *addr) {
         }
         //else allocate more physical pages
         else {
+
+            if (addr >= VMEM_1_LIMIT - NUM_RESERVED_KERNEL_PAGES * PAGESIZE)
+                return -1;
 
             // TODO: handle decreasing heap size
             if (addr < cur_brk)

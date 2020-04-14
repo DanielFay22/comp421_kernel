@@ -12,6 +12,8 @@
 
 #endif
 
+#define NUM_RESERVED_KERNEL_PAGES   3
+
 unsigned int next_pid;
 
 
@@ -19,6 +21,7 @@ extern unsigned int alloc_page(void);
 extern int free_page(int pfn);
 
 extern SavedContext *ContextSwitchFunc(SavedContext *, void *, void *);
+SavedContext *ForkContextSwitchHelper(SavedContext *, void *, void *);
 
 extern int LoadProgram(char *name, char **args, ExceptionInfo *info);
 
@@ -80,5 +83,6 @@ struct process_info *pop_process(
 void remove_process(struct process_info **head, struct process_info **tail,
                     struct process_info *pi);
 
+struct pte *get_new_page_table(void);
 
 #endif

@@ -4,7 +4,7 @@
 int
 main()
 {	
-	TracePrintf(0, "pid %d\n", GetPid());
+	TracePrintf(0, "pid %d\n", Fork());
     write(2, "init!\n", 6);
     TracePrintf(0, "about to enter loop\n");
     while(1) {

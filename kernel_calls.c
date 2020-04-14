@@ -8,6 +8,7 @@ SavedContext *ForkContextSwitchHelper(SavedContext *ctxp,
     void *p1, void *p2) {
     int i;
 
+    struct pte *new_table_base = (struct pte *)(VMEM_1_LIMIT - 2 * PAGESIZE);
     struct process_info *curProc = (struct process_info *)p1;
     curProc->ctx = *ctxp;
 
@@ -143,9 +144,9 @@ int Fork(void) {
     TracePrintf(0, "Returning\n");
     // Return 0 if in calling process, new pid otherwise
     if (active_process->pid == pid)
-        return 0;
+        return ++pid;
 
-    return active_process->pid;
+    return 0;
 }
 
 
@@ -155,6 +156,7 @@ int Exec(char *filename, char **argvec) {
 
 
 void Exit(int status) {
+    TracePrintf(0, "Exit from process %d\n", active_process->pid);
     Halt();
 }
 

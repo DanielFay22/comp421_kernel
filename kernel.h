@@ -51,6 +51,8 @@ struct process_info {
     void *pc;
     void *sp;
     SavedContext ctx;
+    void *user_brk;
+    unsigned int parent;
     struct process_info *next_process;
     struct process_info *prev_process;
 };
@@ -71,6 +73,8 @@ int allocated_pages;
 
 #define MAX_CLOCK_TICKS 2
 
+#define NO_PARENT   -1
+
 unsigned int clock_count;
 unsigned int last_switch;
 
@@ -84,5 +88,6 @@ void remove_process(struct process_info **head, struct process_info **tail,
                     struct process_info *pi);
 
 struct pte *get_new_page_table(void);
+void free_page_table(struct pte *pt);
 
 #endif

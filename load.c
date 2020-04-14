@@ -124,7 +124,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     stack_npg = (USER_STACK_LIMIT - DOWN_TO_PAGE(cpp)) >> PAGESHIFT;
 
     TracePrintf(10, "LoadProgram: text_npg %d, data_bss_npg %d, stack_npg %d\n",
-	text_npg, data_bss_npg, stack_npg);
+        text_npg, data_bss_npg, stack_npg);
 
     /*
      *  Make sure we will leave at least one page between heap and stack
@@ -143,7 +143,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      *  load the new program.
      */
     int req_pages = text_npg + data_bss_npg + stack_npg
-                    - active_process->user_pages;
+        - active_process->user_pages;
     if (allocated_pages + req_pages > tot_pmem_pages) {
         TracePrintf(0,
             "LoadProgram: program '%s' size too large for physical memory\n",
@@ -160,6 +160,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     //struct pte *page_table = active_process->page_table;
     TracePrintf(0, "%p\n", page_table);
     TracePrintf(1, "LoadProgram: erasing PT at %p\n", page_table);
+
     /*
      *  Free all the old physical memory belonging to this process,
      *  but be sure to leave the kernel stack for this process (which
@@ -169,7 +170,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
         free_page(((struct pte *)USER_STACK_LIMIT - i)->pfn);
         ((struct pte *)(USER_STACK_LIMIT - (long)i))->valid = 0;
     }
-    TracePrintf(10, "LoadProgram: freeded stack from PT at %p\n", page_table);
+    TracePrintf(10, "LoadProgram: freed stack from PT at %p\n", page_table);
 
     /*
      *  Fill in the page table with the right number of text,
@@ -213,6 +214,12 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
         };
     }
     TracePrintf(10, "done with pages\n");
+
+    // Update the user page count.
+    active_process->user_pages = data_bss_npg + text_npg + stack_npg;
+    active_process->user_brk = (void *)(MEM_INVALID_SIZE +
+        ((data_bss_npg + text_npg) << PAGESHIFT));
+
     /*
      *  All pages for the new address space are now in place.  Flush
      *  the TLB to get rid of all the old PTEs from this process, so
@@ -228,7 +235,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
         TracePrintf(10, "LoadProgram: couldn't read for '%s'\n", name);
         free(argbuf);
         close(fd);
-    	return (-2);
+        return (-2);
     }
     TracePrintf(10, "read\n");
     close(fd);			/* we've read it all now */

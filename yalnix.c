@@ -174,9 +174,12 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     // Set region 0 page table to new process table
     TracePrintf(0, "writing new region 0 PT addr %p\n", newProc->page_table);
     WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
+    kernel_page_table[PAGE_TABLE_LEN - 1].pfn =
+        DOWN_TO_PAGE(newProc->page_table) >> PAGESHIFT;
 
-    // Flush region 0 entries from the TLB
+    // Flush region 0 entries from the TLB and page table entry from region 1
     WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
+    WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) (VMEM_LIMIT - PAGESIZE));
 
     return &newProc->ctx;
 }
@@ -291,13 +294,40 @@ struct pte *get_new_page_table() {
 //    return table;
 }
 
+void free_page_table(struct pte *pt) {
+    unsigned int pfn = ((unsigned int)pt) >> PAGESHIFT;
+
+    struct available_page_table *head = page_tables;
+    while (head != NULL) {
+        if (((unsigned int)head->page_table) >> PAGESHIFT == pfn)
+            break;
+        head = head->next;
+    }
+
+    // If both halves of the page frame are not in use, free the page
+    if (head != NULL)
+        free_page(pfn);
+    else {
+        // Otherwise add an entry to the list of free pagetables
+        struct available_page_table *apt = (struct available_page_table *)
+            malloc(sizeof(struct available_page_table));
+        *apt = (struct available_page_table) {
+            .page_table = (void *)pt,
+            .next = page_tables
+        };
+
+        page_tables = apt;
+    }
+
+}
+
 
 unsigned int alloc_page(void) {
     unsigned int i;
 
     // No physical memory available
     if (allocated_pages == tot_pmem_pages)
-        return -1;
+        return ERROR;
 
     // Find next available page
     for (i = 0; i < tot_pmem_pages; ++i) {
@@ -308,7 +338,7 @@ unsigned int alloc_page(void) {
         }
     }
 
-    return -1;
+    return ERROR;
 }
 
 int free_page(int pfn) {
@@ -486,7 +516,6 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     }
 
     //special entry for region 0 page table
-    
     struct pte idle_PT_entry = {
         .pfn = (VMEM_LIMIT - PAGESIZE) >> PAGESHIFT,
         .unused = 0b00000,
@@ -533,9 +562,6 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     WriteRegister(REG_PTR0, (RCS421RegVal) idle_page_table);
     WriteRegister(REG_PTR1, (RCS421RegVal) &kernel_page_table);
 
-    // TODO: structure associating Pid's with page tables
-    //  -hash table with Pid as key
-
     // Setup idle process
     TracePrintf(0, "assign idle PCB\n");
     idle = malloc(sizeof(struct process_info));
@@ -543,7 +569,9 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     *idle = (struct process_info){
         .pid = next_pid++,
         .user_pages = 0,
+        .user_brk = (void *)MEM_INVALID_SIZE,
         .page_table = (void *)idle_page_table,
+        .parent = NO_PARENT,
         .pc = NULL,
         .sp = NULL,
         .ctx = NULL,
@@ -563,8 +591,10 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     *init = (struct process_info) {
         .pid = next_pid++,
         .user_pages = 0,
+        .user_brk = (void *)MEM_INVALID_SIZE,
         .page_table = (void *)(VMEM_LIMIT - 2 * PAGESIZE),
-        .delay_ticks = 0
+        .delay_ticks = 0,
+        .parent = NO_PARENT
     };
 
     ContextSwitch(ContextSwitchOne, (SavedContext *)&idle->ctx, init, NULL);

@@ -1,5 +1,5 @@
 
-
+#include<stdlib.h>
 #include "kernel.h"
 
 /*
@@ -65,8 +65,6 @@ void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 void trap_clock_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_clock_handler - Active process: %u\n",
                 active_process->pid);
-
-    struct process_info* temp;
 
     // Decrement all waiting processes and move any completed
     // processes onto the ready queue.
@@ -177,14 +175,14 @@ void trap_memory_handler(ExceptionInfo *exceptionInfo) {
 
     void *addr = exceptionInfo->addr;
 
-    if (addr > USER_STACK_LIMIT) {
+    if ((long)addr > USER_STACK_LIMIT) {
         printf("ERROR: Process %d attempted to access an invalid address: %p\n",
             active_process->pid, addr);
         KernelExit(ERROR);
     }
 
     // Check if expanding stack pushes into the heap.
-    if (DOWN_TO_PAGE(addr) - PAGESIZE < active_process->user_brk) {
+    if (DOWN_TO_PAGE(addr) - PAGESIZE < (long)(active_process->user_brk) ) {
         printf("ERROR: Stackoverflow, process %d\n", active_process->pid);
         KernelExit(ERROR);
     }
@@ -268,7 +266,14 @@ void trap_math_handler(ExceptionInfo *exceptionInfo) {
  */
 void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_transmit_handler");
-    Halt();
+
+    struct terminal_info *terminal = terminals[exceptionInfo->code];
+
+    struct process_info *popped = pop_process(&terminal->w_head, &terminal->w_tail);
+
+    if (popped != NULL) {
+        push_process(&process_queue, &pq_tail, popped);
+    }
 }
 
 /*
@@ -331,10 +336,12 @@ void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
     
     //add any remaining line input to the available lines
     if(len > 0) {
+        //if there are no avaliable lines on this terminal, start the queue
         if (terminal->next_line == NULL) {
         terminal->next_line = new;
         terminal->last_line = new;
         }
+        //else add to it
         else {
             (terminal->last_line)->next = new;
             terminal->last_line = (terminal->last_line)->next; 

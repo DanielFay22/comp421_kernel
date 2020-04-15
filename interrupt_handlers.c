@@ -114,24 +114,153 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
  * Interrupt handler for TRAP_ILLEGAL interrupt.
  */
 void trap_illegal_handler(ExceptionInfo *exceptionInfo) {
-    TracePrintf(1, "trap_illegal_handler");
-    Halt();
+    char *msg;
+
+    switch (exceptionInfo->code) {
+    case TRAP_ILLEGAL_ILLOPC:
+        msg = "Illegal opcode";
+        break;
+    case TRAP_ILLEGAL_ILLOPN:
+        msg = "Illegal operand";
+        break;
+    case TRAP_ILLEGAL_ILLADR:
+        msg = "Illegal addressing mode";
+        break;
+    case TRAP_ILLEGAL_ILLTRP:
+        msg = "Illegal software trap";
+        break;
+    case TRAP_ILLEGAL_PRVOPC:
+        msg = "Privileged opcode";
+        break;
+    case TRAP_ILLEGAL_PRVREG:
+        msg = "Privileged register";
+        break;
+    case TRAP_ILLEGAL_COPROC:
+        msg = "Coprocessor error";
+        break;
+    case TRAP_ILLEGAL_BADSTK:
+        msg = "Bad stack";
+        break;
+    case TRAP_ILLEGAL_KERNELI:
+        msg = "Linux kernel sent SIGILL";
+        break;
+    case TRAP_ILLEGAL_USERIB:
+        msg = "Received SIGILL or SIGBUS from user";
+        break;
+    case TRAP_ILLEGAL_ADRALN:
+        msg = "Invalid address alignment";
+        break;
+    case TRAP_ILLEGAL_ADRERR:
+        msg = "Non-existent physical address";
+        break;
+    case TRAP_ILLEGAL_OBJERR:
+        msg = "Object-specific HW error";
+        break;
+    case TRAP_ILLEGAL_KERNELB:
+        msg = "Linux kernel sent SIGBUS";
+        break;
+    }
+
+    printf("ERROR: Process %d terminated. Reason: %s\n",
+        active_process->pid, msg);
+
+    KernelExit(ERROR);
 }
 
 /*
  * Interrupt handler for TRAP_MEMORY interrupt.
  */
 void trap_memory_handler(ExceptionInfo *exceptionInfo) {
-    TracePrintf(1, "trap_memory_handler");
-    Halt();
+    int i;
+
+    TracePrintf(0, "TRAP_MEMORY - pid = %d\n", active_process->pid);
+
+    void *addr = exceptionInfo->addr;
+
+    if (addr > USER_STACK_LIMIT) {
+        printf("ERROR: Process %d attempted to access an invalid address: %p\n",
+            active_process->pid, addr);
+        KernelExit(ERROR);
+    }
+
+    // Check if expanding stack pushes into the heap.
+    if (DOWN_TO_PAGE(addr) - PAGESIZE < active_process->user_brk) {
+        printf("ERROR: Stackoverflow, process %d\n", active_process->pid);
+        KernelExit(ERROR);
+    }
+
+    int heap_pages = ((long)active_process->user_brk - MEM_INVALID_SIZE)
+        >> PAGESHIFT;
+    int stack_pages = active_process->user_pages - heap_pages;
+
+    void *cur_stack = USER_STACK_LIMIT - (stack_pages << PAGESHIFT);
+
+    int num_new_pages = (DOWN_TO_PAGE(cur_stack) - DOWN_TO_PAGE(addr))
+        >> PAGESHIFT;
+
+    if (num_new_pages > tot_pmem_pages - allocated_pages) {
+        printf("ERROR: Unable to allocate memory for stack, process %d\n",
+            active_process->pid);
+        KernelExit(ERROR);
+    }
+
+    struct pte *page_table = (struct pte *)(VMEM_LIMIT - PAGESIZE);
+
+    for (i = 0; i < num_new_pages; ++i) {
+        *(page_table + (USER_STACK_LIMIT >> PAGESHIFT) - stack_pages - i - 1) =
+            (struct pte) {
+            .pfn = alloc_page(),
+            .uprot = PROT_READ | PROT_WRITE,
+            .kprot = PROT_READ | PROT_WRITE,
+            .valid = 1
+        };
+    }
+
 }
 
 /*
  * Interrupt handler for TRAP_MATH interrupt.
  */
 void trap_math_handler(ExceptionInfo *exceptionInfo) {
-    TracePrintf(1, "trap_math_handler");
-    Halt();
+    char *msg;
+
+    switch (exceptionInfo->code) {
+    case TRAP_MATH_INTDIV:
+        msg = "Integer divide by zero";
+        break;
+    case TRAP_MATH_INTOVF:
+        msg = "Integer overflow";
+        break;
+    case TRAP_MATH_FLTDIV:
+        msg = "Floating divide by zero";
+        break;
+    case TRAP_MATH_FLTOVF:
+        msg = "Floating overflow";
+        break;
+    case TRAP_MATH_FLTUND:
+        msg = "Floating underflow";
+        break;
+    case TRAP_MATH_FLTRES:
+        msg = "Floating inexact result";
+        break;
+    case TRAP_MATH_FLTINV:
+        msg = "Invalid floating operation";
+        break;
+    case TRAP_MATH_FLTSUB:
+        msg = "FP subscript out of range";
+        break;
+    case TRAP_MATH_KERNEL:
+        msg = "Linux kernel sent SIGFPE";
+        break;
+    case TRAP_MATH_USER:
+        msg = "Received SIGFPE from user";
+        break;
+    }
+
+    printf("ERROR: Process %d terminated. Reason: %s\n",
+        active_process->pid, msg);
+
+    KernelExit(ERROR);
 }
 
 /*

@@ -4,14 +4,21 @@
 #include "kernel.h"
 
 
-// Draft of context switch function
+/*
+ * Basic Context Switch function used for switching between two processes.
+ *
+ * ctxp is a pointer to a SavedContext object describing the state of the
+ * system when the call to ContextSwitch was made.
+ * p1 is a pointer to the pcb of the currently active process.
+ * p2 is a pointer to the pcb of the newly active process.
+ *
+ * Returns a pointer to the SavedContext that will be restored.
+ */
 SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     void *p1, void *p2) {
 
     struct process_info *curProc = (struct process_info *)p1;
     struct process_info *newProc = (struct process_info *)p2;
-
-    curProc->ctx = *ctxp;
 
     active_process = newProc;
 
@@ -28,14 +35,20 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     return &newProc->ctx;
 }
 
+/*
+ * Helper function used by Fork to get a SavedContext object
+ * for the child process and to copy the kernel stack of the
+ * parent process to the child process.
+ *
+ * ctxp is a pointer to a SavedContext object describing the state of the
+ * system when the call to ContextSwitch was made.
+ * p1 and p2 are both unused.
+ */
 SavedContext *ContextSwitchForkHelper(SavedContext *ctxp,
     void *p1, void *p2) {
     int i;
 
     struct pte *new_table_base = (struct pte *)(VMEM_1_LIMIT - 2 * PAGESIZE);
-    struct process_info *curProc = (struct process_info *)p1;
-    curProc->ctx = *ctxp;
-
 
     // Copy kernel stack
     void *temp = VMEM_1_LIMIT - 3 * PAGESIZE;
@@ -58,6 +71,10 @@ SavedContext *ContextSwitchForkHelper(SavedContext *ctxp,
     return ctxp;
 }
 
+/*
+ * Helper function used by KernelStart to set up the kernel stack
+ * and context for the init process.
+ */
 SavedContext *ContextSwitchInitHelper(SavedContext *ctxp,
     void *p1, void *p2) {
     int i;
@@ -93,7 +110,15 @@ SavedContext *ContextSwitchInitHelper(SavedContext *ctxp,
     return ctxp;
 }
 
-
+/*
+ * Helper function used by Exit which frees the kernel stack, page table,
+ * and pcb of the calling process, then switches to a new process.
+ *
+ * ctxp is a pointer to a SavedContext object describing the state of the
+ * system when the call to ContextSwitch was made.
+ * p1 is a pointer to the pcb of the process which is exiting.
+ * p2 is a pointer to the pcb of the process to become active.
+ */
 SavedContext *ContextSwitchExitHelper(SavedContext *ctxp,
     void *p1, void *p2) {
     int i;
@@ -129,5 +154,4 @@ SavedContext *ContextSwitchExitHelper(SavedContext *ctxp,
     last_switch = clock_count;
 
     return &newProc->ctx;
-
 }

@@ -2,7 +2,9 @@
 
 #include "kernel.h"
 
-
+/*
+ * Interrupt handler for TRAP_KERNEL interrupt.
+ */
 void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 
     switch (exceptionInfo->code) {
@@ -57,6 +59,9 @@ void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 
 }
 
+/*
+ * Interrupt handler for TRAP_CLOCK interrupt.
+ */
 void trap_clock_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_clock_handler - Active process: %u\n",
                 active_process->pid);
@@ -105,26 +110,41 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
     }
 }
 
+/*
+ * Interrupt handler for TRAP_ILLEGAL interrupt.
+ */
 void trap_illegal_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_illegal_handler");
     Halt();
 }
 
+/*
+ * Interrupt handler for TRAP_MEMORY interrupt.
+ */
 void trap_memory_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_memory_handler");
     Halt();
 }
 
+/*
+ * Interrupt handler for TRAP_MATH interrupt.
+ */
 void trap_math_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_math_handler");
     Halt();
 }
 
+/*
+ * Interrupt handler for TRAP_TTY_TRANSMIT interrupt.
+ */
 void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_transmit_handler");
     Halt();
 }
 
+/*
+ * Interrupt handler for TRAP_TTY_RECEIVE interrupt.
+ */
 void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_receive_handler");
     Halt();

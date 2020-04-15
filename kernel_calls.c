@@ -118,8 +118,7 @@ int KernelFork(void) {
     push_process(&process_queue, &pq_tail, pcb);
 
     // Use context switch to get context for child process
-    ContextSwitch(ContextSwitchForkHelper, &(pcb->ctx),
-        (void *)pcb, NULL);
+    ContextSwitch(ContextSwitchForkHelper, &(pcb->ctx), NULL, NULL);
 
 
     // Return 0 if in child process, new pid otherwise

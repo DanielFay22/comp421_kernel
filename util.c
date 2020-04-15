@@ -11,7 +11,14 @@ struct available_page_table {
 struct available_page_table *page_tables = NULL;
 
 
-
+/*
+ * Gets a pointer to a new page table.
+ *
+ * If there is an existing region of physical memory
+ * allocated but not in use, that is returned. Otherwise
+ * a new page is allocated, half is saved for a later
+ * call and the other half is returned.
+ */
 struct pte *get_new_page_table() {
     void *page_table;
 
@@ -20,10 +27,8 @@ struct pte *get_new_page_table() {
         struct available_page_table *pt = page_tables;
         page_tables = page_tables->next;
 
-
         page_table = pt->page_table;
         free(pt);
-
 
     } else {
         // Allocate a new page
@@ -40,54 +45,16 @@ struct pte *get_new_page_table() {
     }
 
     return (struct pte *)page_table;
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//    int i;
-//    //TODO don't know if this is necessary
-//
-//    struct pte *table = (struct pte *)malloc(sizeof(struct pte) * PAGE_TABLE_LEN);
-//
-//    //struct pte *table = (struct pte *)malloc(sizeof(struct pte));
-//
-//    for (i = 0; i < MEM_INVALID_PAGES; ++i)
-//        (table + i)->valid = 0;
-//
-//    for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
-//        struct pte entry = {
-//            .pfn = alloc_page(),
-//            .unused = 0b00000,
-//            .uprot = PROT_NONE,
-//            .kprot = PROT_READ | PROT_WRITE,
-//            .valid = 0b1
-//        };
-//
-//        *(table + KERNEL_STACK_BASE / PAGESIZE + i) = entry;
-//    }
-//
-//    // Initialize user stack
-//    struct pte entry = {
-//        .pfn = alloc_page(),
-//        .unused = 0,
-//        .uprot = PROT_READ | PROT_WRITE,
-//        .kprot = PROT_READ | PROT_WRITE,
-//        .valid = 1
-//    };
-//
-//
-//    (table + USER_STACK_LIMIT / PAGESIZE)->valid = 0;
-//    *(table + USER_STACK_LIMIT / PAGESIZE - 1) = entry;
-//
-//    // TODO: allocate and initializing a new page table
-//    return table;
 }
 
+/*
+ * Frees the physical memory used to store a page table.
+ *
+ * If the other half of the physical page containing the
+ * given page table is still in use, the memory is saved
+ * to be reused by later calls. If the other half is also
+ * free, then the physical page is freed.
+ */
 void free_page_table(struct pte *pt) {
     unsigned int pfn = ((unsigned int)pt) >> PAGESHIFT;
 
@@ -123,7 +90,14 @@ void free_page_table(struct pte *pt) {
 
 }
 
-
+/*
+ * Allocates a page of physical memory.
+ *
+ * If there is an available page of physical memory, returns
+ * the pfn of a newly allocated page.
+ *
+ * Returns ERROR if there are no free pages.
+ */
 unsigned int alloc_page(void) {
     unsigned int i;
 
@@ -143,7 +117,18 @@ unsigned int alloc_page(void) {
     return ERROR;
 }
 
+/*
+ * Marks the provided page frame as free.
+ *
+ * pfn should be a number corresponding to a page of physical memory.
+ *
+ * Returns ERROR if the provided pfn is invalid, 0 otherwise.
+ */
 int free_page(int pfn) {
+
+    if (pfn < 0 || pfn >= tot_pmem_pages)
+        return ERROR;
+
     // Check page was actually marked used
     if ((free_pages + pfn)->in_use) {
         (free_pages + pfn)->in_use = 0;
@@ -152,10 +137,15 @@ int free_page(int pfn) {
     return 0;
 }
 
-
-// Add a new pcb to the given queue
+/*
+ * Adds a single pcb to the provided queue.
+ *
+ * *head should be a pointer to the head of the queue
+ * *tail should be a pointer to the tail of the queue
+ * new_pcb is the pcb you want to add to the queue
+ */
 void push_process(struct process_info **head, struct process_info **tail,
-                  struct process_info *new_pcb) {
+    struct process_info *new_pcb) {
 
     TracePrintf(1, "PUSH PROCESS: Pushing process %d onto PQ\n", new_pcb->pid);
 
@@ -175,9 +165,18 @@ void push_process(struct process_info **head, struct process_info **tail,
     }
 }
 
-// Pop the next process off the given queue
-struct process_info *pop_process(
-    struct process_info **head, struct process_info **tail) {
+/*
+ * Removes and returns a single pcb from the provided queue
+ *
+ * *head should be a pointer to the head of the queue
+ * *tail should be a pointer to the tail of the queue
+ *
+ * Returns a pointer to the pcb that was previously at the
+ * head of the queue, unless the queue is empty, in which case
+ * returns NULL.
+ */
+struct process_info *pop_process(struct process_info **head,
+    struct process_info **tail) {
 
     struct process_info *new_head = *head;
 
@@ -192,9 +191,15 @@ struct process_info *pop_process(
     return new_head;
 }
 
-// Remove a pcb from whatever queue it is part of
+/*
+ * Removes the given pcb from the provided queue.
+ *
+ * *head should be a pointer to the head of the queue
+ * *tail should be a pointer to the tail of the queue
+ * pi should be a pointer to a pcb which is contained in the given queue
+ */
 void remove_process(struct process_info **head, struct process_info **tail,
-                    struct process_info *pi) {
+    struct process_info *pi) {
 
 //    TracePrintf(0, "Remove process: head address = %x, tail address = %x\n",
 //                (unsigned int)*head, (unsigned int)*tail);

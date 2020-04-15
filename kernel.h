@@ -48,8 +48,6 @@ struct process_info {
     unsigned int delay_ticks;
     void *page_table;
     unsigned int user_pages;    // Number of allocated pages (excluding kernel stack)
-    void *pc;
-    void *sp;
     SavedContext ctx;
     void *user_brk;
     unsigned int parent;

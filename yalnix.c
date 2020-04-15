@@ -184,9 +184,10 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     return &newProc->ctx;
 }
 
-SavedContext *ContextSwitchOne(SavedContext *ctxp,
+SavedContext *ContextSwitchInitHelper(SavedContext *ctxp,
     void *p1, void *p2) {
     int i;
+
     //redefine the init PT pointer
     struct pte *init_page_table = (struct pte *) (VMEM_LIMIT - PAGESIZE * 2);
     //copy the Kernel Stack
@@ -200,7 +201,7 @@ SavedContext *ContextSwitchOne(SavedContext *ctxp,
             .valid = 0b1
         };
         kernel_page_table[PAGE_TABLE_LEN - 3] = init_stack_entry;
-        init_page_table[PAGE_TABLE_LEN - 4 + i] = init_stack_entry;
+        init_page_table[PAGE_TABLE_LEN - KERNEL_STACK_PAGES + i] = init_stack_entry;
         WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) (VMEM_LIMIT - PAGESIZE * 3));
         memcpy((void*)(VMEM_LIMIT - 3 * PAGESIZE), (void*)(KERNEL_STACK_BASE + i * PAGESIZE), PAGESIZE);
     }
@@ -451,7 +452,7 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
 
     // Allocate a structure for storing the status of all physical pages.
     free_pages = (struct free_page *)
-        malloc(sizeof(struct free_page) * tot_pmem_pages);//cur_brk;
+        malloc(sizeof(struct free_page) * tot_pmem_pages);
 
     // Initial Region 0 (idle) Page Table, always at the top of VMEM
     struct pte *idle_page_table = (struct pte *)(VMEM_LIMIT - PAGESIZE); 
@@ -572,9 +573,6 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .user_brk = (void *)MEM_INVALID_SIZE,
         .page_table = (void *)idle_page_table,
         .parent = NO_PARENT,
-        .pc = NULL,
-        .sp = NULL,
-        .ctx = NULL,
         .next_process = NULL
     };
 
@@ -597,8 +595,9 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .parent = NO_PARENT
     };
 
-    ContextSwitch(ContextSwitchOne, (SavedContext *)&idle->ctx, init, NULL);
-    //WriteRegister(REG_PTR0, (RCS421RegVal) (active_process->page_table << PAGESHIFT) );
+    // Get current context for init process
+    ContextSwitch(ContextSwitchInitHelper, (SavedContext *)&idle->ctx,
+        init, NULL);
 
     if (GetPid()) {
         TracePrintf(0, "init exiting kernelstart\n");

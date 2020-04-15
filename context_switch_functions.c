@@ -3,7 +3,16 @@
 
 #include "kernel.h"
 
+void RemoveSwitch(void) {
+    struct process_info *next = pop_process(&process_queue, &pq_tail);
 
+    TracePrintf(1, "Popped process %d off queue\n", next->pid);
+
+    last_switch = clock_count;
+
+    ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
+        (void *)active_process, (void *)next);
+}
 /*
  * Basic Context Switch function used for switching between two processes.
  *

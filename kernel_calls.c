@@ -434,13 +434,73 @@ int KernelDelay(int clock_ticks) {
   * Implements the TtyRead() kernel call.
   */
 int KernelTtyRead(int tty_id, void *buf, int len) {
-    return 0;
+    if (len == 0) {
+        return 0;
+    }
+
+    //get the correct terminal info
+    struct terminal_info *terminal = terminals[tty_id];
+    struct available_line *line = terminal->next_line;
+
+    //if there are available lines on this terminal, use one
+    if (line != NULL) {
+        //if the first line is longer than this call is looking for
+        if (len < line->len) {
+            memcpy(buf, (void*)line->line, len);
+            //update the avaliable line
+            line->len = line->len - len;
+            line->line += len;
+            return len;
+        }
+        else {
+            //move the line queue up
+            terminal->next_line = line->next;
+            memcpy(buf, line->line, line->len);
+            //free the avaliable line
+            free(line->orig_ptr);
+            len = line->len;
+            free(line);
+            return len;
+        }
+    }
+    //if there are no available lines, block
+    else {
+        //indicate how many chacters this process is looking for
+        active_process->seeking_len = len;
+
+        push_process(&terminal->r_head, &terminal->r_tail, active_process);
+
+        RemoveSwitch();
+
+        memcpy(buf, active_process->line->line, active_process->line->len);
+        //free the line if it was the end
+        if (active_process->line->free) {
+            free(active_process->line->orig_ptr);
+        }
+        len = active_process->line->len;
+        free(active_process->line);
+        return len;
+    }
 }
 
 /*
  * Implements the TtyWrite() kernel call.
  */
 int KernelTtyWrite(int tty_id, void *buf, int len) {
-    return 0;
+    TracePrintf(0, "TtyWrite\n");
+    Halt();
+    // if (terminals_w[tty_id] == NULL) {
+    //     terminals_w[tty_id]->head = active_process;
+    //     terminals_w[tty_id]->tail = active_process;
+
+    //     TtyTransmit(tty_id, buf, len);
+    //     RemoveSwitch();
+    // }
+    // else {
+    //     push_process(&terminals_w[tty_id]->head, &terminals_w[tty_id]->tail, terminals_w[tty_id]);
+
+    //     RemoveSwitch();
+    // }
+    // return len;
 }
 

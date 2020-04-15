@@ -31,6 +31,17 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     // Write address of interrupt vector table to REG_VECTOR_BASE register
     WriteRegister(REG_VECTOR_BASE, (RCS421RegVal) &interrupt_table);
 
+    for (i = 0; i < NUM_TERMINALS;i++) {
+        terminals[i] = (struct terminal_info *)malloc(sizeof(struct terminal_info));
+        *terminals[i] = (struct terminal_info) {
+            .r_head = NULL,
+            .r_tail = NULL,
+            .w_head = NULL,
+            .w_tail = NULL,
+            .next_line = NULL,
+            .last_line = NULL
+        };
+    }
     // Allocate a structure for storing the status of all physical pages.
     free_pages = (struct free_page *)
         malloc(sizeof(struct free_page) * tot_pmem_pages);

@@ -147,5 +147,70 @@ void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
  */
 void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_receive_handler");
-    Halt();
+
+    //get the correct terminal info
+    int term = info->code;
+    struct terminal_info *terminal = terminals[term];
+
+    //read the line into a buffer
+    char *newline = (char *)malloc(TERMINAL_MAX_LINE);
+    int len = TtyReceive(term, newline, TERMINAL_MAX_LINE);
+
+    //initialize an avaliable line struct to represent this input line
+    struct avaliable_line *new = (struct avaliable_line *) malloc(sizeof(struct avaliable_line));
+        *new = (struct avaliable_line) {
+            .line = newline,
+            .orig_ptr = newline,
+            .free = 1,
+            .len = len,
+            .next = NULL
+        }
+
+    //pop process off the terminal's read wait queue
+    struct process_info *popped = pop_process(&terminal->r_head, &terminal->r_tail);
+    //while the queue was not empty
+    while (popped != NULL) {
+        //if the popped process was seeking less characters than the line len
+        if (popped->seeking_len < len) {
+            //make a new avaliable line struct to attach to pcb
+            struct available_line *newnew = (struct avaliable_line *) malloc(sizeof(struct avaliable_line));
+            *newnew = (struct avaliable_line) {
+                .line = newline,
+                .free = 0,
+                .len = popped->seeking_len,
+                .next = NULL
+            }
+            //attach the line to process pcb and return it to the process queue
+            popped->line = newnew;
+            push_process(&process_queue, &pq_tail, popped);
+
+            //update the input line
+            new->line += popped->seeking_len;
+            new->len -= popped->seeking_len;
+
+            len -= popped->seeking_len;
+        }
+        //popped process consumes the rest of the line
+        else {
+            popped->line = new;
+            push_process(&process_queue, &pq_tail);
+            len = 0;
+            break;
+        }
+        popped = pop_process(&terminal->r_head, &terminal->r_tail);
+    }
+    
+    //add any remaining line input to the avaliable lines
+    if(len > 0) {
+        if (terminal->next_line == NULL) {
+        terminal->next_line = new;
+        terminal->last_line = new;
+        }
+        else {
+            (terminal->last_line)->next = new;
+            terminal->last_line = (terminal->last_line)->next; 
+        }
+    }
+
+
 }

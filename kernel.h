@@ -25,6 +25,25 @@
 
 
 // Struct definitions
+struct avaliable_line {
+    char *line;
+    char *orig_ptr;
+    unsigned int free : 1;
+    int len;
+    struct avaliable_line *next;
+};
+
+struct terminal_info {
+    struct process_info *r_head;
+    struct process_info *r_tail;
+
+    struct process_info *w_head;
+    struct process_info *w_tail;
+
+    struct avaliable_line *next_line;
+    struct avaliable_line *last_line;
+};
+
 struct process_info {
     unsigned int pid;
     unsigned int delay_ticks;
@@ -37,6 +56,8 @@ struct process_info {
     int exited_children;
     struct process_info *next_process;
     struct process_info *prev_process;
+    struct avaliable_line *line;
+    int seeking_len;
 };
 
 struct free_page {
@@ -51,7 +72,7 @@ struct exit_status {
     struct exit_status *next;
 };
 
-
+struct terminal_info *terminals[NUM_TERMINALS];
 
 // Util function definitions
 extern struct pte *get_new_page_table(void);
@@ -120,7 +141,6 @@ struct process_info *pq_tail;
 
 struct process_info *waiting_queue;
 struct process_info *wq_tail;
-
 
 int allocated_pages;
 

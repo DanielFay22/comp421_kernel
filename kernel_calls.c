@@ -1,9 +1,18 @@
 
-#include <stddef.h>
 #include <string.h>
+
 #include "kernel.h"
 
-
+/*
+ * Implements the Fork() kernel call.
+ *
+ * Creates a new process with a copy of the current process's
+ * memory space. The new process will be a child of the calling
+ * process.
+ *
+ * Returns the pid of the created process to the calling process,
+ * and returns 0 to the child process.
+ */
 int KernelFork(void) {
     int i, j;
     int pid = active_process->pid;
@@ -120,27 +129,51 @@ int KernelFork(void) {
     return 0;
 }
 
+/*
+ * Implements the Exec() kernel call.
+ *
+ * Loads the program given by the arguments in the ExceptionInfo
+ * struct into memory and begins executing it. Replaces the
+ * currently executing process with the new process.
+ *
+ * If LoadProgram receives a recoverable error, a value of ERROR
+ * is returned through the ExceptionInfo struct.
+ * If LoadProgram experiences an irrecoverable error, the current
+ * process exits with status ERROR.
+ * On success, the current process begins executing the new code.
+ */
 void KernelExec(ExceptionInfo *info) {
     int c;
 
+    // Unpack the arguments from the ExceptionInfo struct
     char *fn = info->regs[1];
     char **av = info->regs[2];
 
+    // In case of error, either return or exit with ERROR status
     switch (c = LoadProgram(fn, av, info)) {
-    case ERROR:
+    case ERROR: // Continue running
         info->regs[0] = ERROR;
         return;
 
     case -2:    // non-recoverable error
         KernelExit(ERROR);
 
-    default:
+    default:    // LoadProgram was successful, don't change info struct
         return;
     }
 
-
 }
 
+/*
+ * Implements the Exit() kernel call.
+ *
+ * Terminates the current process, freeing all allocated
+ * memory.
+ *
+ * If the calling process has a parent that is not exited,
+ * the process pid, parent pid, and exit status will be
+ * saved for later recovery with a call to Wait().
+ */
 void KernelExit(int status) {
     int i;
     struct process_info *parent = NULL;
@@ -228,6 +261,20 @@ void KernelExit(int status) {
 
 }
 
+/*
+ * Implements the Wait() kernel call.
+ *
+ * If the calling process has unreaped children, returns the
+ * pid of the earliest child to exit and stores the status of
+ * that child in status_ptr.
+ *
+ * If the calling process has no unreaped children, but does
+ * have actively running children, process blocks until a child
+ * Exits, at which point the return is as described above.
+ *
+ * If the calling process has no children, actively running or
+ * unreaped, returns ERROR.
+ */
 int KernelWait(int *status_ptr) {
     TracePrintf(0, "WAIT: pid = %d\n", active_process->pid);
 
@@ -288,10 +335,14 @@ int KernelWait(int *status_ptr) {
     }
 }
 
-int KernelGetPid(void) {
-    return active_process->pid;
-}
-
+/*
+ * Implements the Brk() kernel call.
+ *
+ * Moves the location of a user process break to the
+ * specified address.
+ *
+ * Returns 0 on success, ERROR on failure.
+ */
 int KernelBrk(void *addr) {
     int i;
     long new_brk = (long)UP_TO_PAGE(addr);
@@ -342,17 +393,31 @@ int KernelBrk(void *addr) {
     return 0;
 }
 
+/*
+ * Implements the Delay() kernel call.
+ *
+ * The calling process will be blocked for the provided number
+ * of clock ticks.
+ *
+ * After the necessary number of ticks have passed, the process
+ * will return a value of 0.
+ *
+ * If a negative number of ticks is provided, returns ERROR.
+ */
 int KernelDelay(int clock_ticks) {
 	TracePrintf(0, "DELAY: pid = %d\n", active_process->pid);
 
+	// Check invalid or trivial input
 	if (clock_ticks < 0)
         return ERROR;
     else if (clock_ticks == 0)
         return 0;
 
+    // Block current process
     active_process->delay_ticks = clock_ticks;
     push_process(&waiting_queue, &wq_tail, active_process);
 
+    // Switch to next available process, or idle if no process ready
     if (process_queue != NULL) {
     	struct process_info *next = pop_process(&process_queue, &pq_tail);
     	ContextSwitch(ContextSwitchFunc, &active_process->ctx,
@@ -366,10 +431,16 @@ int KernelDelay(int clock_ticks) {
     return 0;
  }
 
+ /*
+  * Implements the TtyRead() kernel call.
+  */
 int KernelTtyRead(int tty_id, void *buf, int len) {
     return 0;
 }
 
+/*
+ * Implements the TtyWrite() kernel call.
+ */
 int KernelTtyWrite(int tty_id, void *buf, int len) {
     return 0;
 }

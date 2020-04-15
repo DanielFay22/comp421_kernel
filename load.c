@@ -158,7 +158,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     struct pte *page_table = (struct pte *)(VMEM_LIMIT - PAGESIZE);
     //struct pte *page_table = active_process->page_table;
-    TracePrintf(0, "%p\n", page_table);
+    TracePrintf(0, "LoadProgram: %p\n", page_table);
     TracePrintf(1, "LoadProgram: erasing PT at %p\n", page_table);
 
     /*
@@ -166,9 +166,11 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      *  but be sure to leave the kernel stack for this process (which
      *  is also in Region 0) alone.
      */
-    for (i = 1; i <= active_process->user_pages; ++i) {
-        free_page(((struct pte *)USER_STACK_LIMIT - i)->pfn);
-        ((struct pte *)(USER_STACK_LIMIT - (long)i))->valid = 0;
+    for (i = MEM_INVALID_PAGES; i < PAGE_TABLE_LEN - KERNEL_STACK_PAGES; ++i) {
+        if ((page_table + i)->valid == 1) {
+            free_page((page_table + i)->pfn);
+            (page_table + i)->valid = 0;
+        }
     }
     TracePrintf(10, "LoadProgram: freed stack from PT at %p\n", page_table);
 

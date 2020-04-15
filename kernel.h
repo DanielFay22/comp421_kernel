@@ -27,6 +27,16 @@ extern SavedContext *ContextSwitchForkHelper(SavedContext *, void *, void *);
 extern SavedContext *ContextSwitchInitHelper(SavedContext *, void *, void *);
 extern SavedContext *ContextSwitchExitHelper(SavedContext *, void *, void *);
 
+extern int KernelFork(void);
+extern void KernelExec(ExceptionInfo *info);
+extern void KernelExit(int status);
+extern int KernelWait(int *status_ptr);
+extern int KernelGetPid(void);
+extern int KernelBrk(void *addr);
+extern int KernelDelay(int clock_ticks);
+extern int KernelTtyRead(int tty_id, void *buf, int len);
+extern int KernelTtyWrite(int tty_id, void *buf, int len);
+
 extern int LoadProgram(char *name, char **args, ExceptionInfo *info);
 
 struct free_page {

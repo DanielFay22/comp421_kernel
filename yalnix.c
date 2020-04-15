@@ -36,46 +36,44 @@ void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 
     switch (exceptionInfo->code) {
         case YALNIX_FORK:
-            exceptionInfo->regs[0] = Fork();
+            exceptionInfo->regs[0] = KernelFork();
             break;
 
         case YALNIX_EXEC:
-            exceptionInfo->regs[0] = Exec(
-                (char *) (exceptionInfo->regs[1]),
-                (char **) (exceptionInfo->regs[2]));
+            KernelExec(exceptionInfo);
             break;
 
         case YALNIX_EXIT:
-            Exit((int) (exceptionInfo->regs[1]));
+            KernelExit((int) (exceptionInfo->regs[1]));
 
         case YALNIX_WAIT:
             exceptionInfo->regs[0] =
-                Wait((int *) (exceptionInfo->regs[1]));
+                KernelWait((int *) (exceptionInfo->regs[1]));
             break;
 
         case YALNIX_GETPID:
-            exceptionInfo->regs[0] = GetPid();
+            exceptionInfo->regs[0] = KernelGetPid();
             break;
 
         case YALNIX_BRK:
-            exceptionInfo->regs[0] = Brk(
+            exceptionInfo->regs[0] = KernelBrk(
                 (void *) (exceptionInfo->regs[1]));
             break;
 
         case YALNIX_DELAY:
-            exceptionInfo->regs[0] = Delay(
+            exceptionInfo->regs[0] = KernelDelay(
                 (int) (exceptionInfo->regs[1]));
             break;
 
         case YALNIX_TTY_READ:
-            exceptionInfo->regs[0] = TtyRead(
+            exceptionInfo->regs[0] = KernelTtyRead(
                 (int) (exceptionInfo->regs[1]),
                 (void *) (exceptionInfo->regs[2]),
                 (int) (exceptionInfo->regs[3]));
             break;
 
         case YALNIX_TTY_WRITE:
-            exceptionInfo->regs[0] = TtyWrite(
+            exceptionInfo->regs[0] = KernelTtyWrite(
                 (int) (exceptionInfo->regs[1]),
                 (void *) (exceptionInfo->regs[2]),
                 (int) (exceptionInfo->regs[3]));
@@ -548,9 +546,8 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     ContextSwitch(ContextSwitchInitHelper, (SavedContext *)&idle->ctx,
         init, NULL);
 
-    if (GetPid()) {
+    if (active_process->pid == 1) {
         TracePrintf(0, "init exiting kernelstart\n");
-        active_process = init;
         LoadProgram(cmd_args[0], &cmd_args[0], info);
     }
     else {

@@ -4,7 +4,7 @@
 #include "kernel.h"
 
 
-int Fork(void) {
+int KernelFork(void) {
     int i, j;
     int pid = active_process->pid;
     int error = 0;
@@ -120,11 +120,28 @@ int Fork(void) {
     return 0;
 }
 
-int Exec(char *filename, char **argvec) {
-    return 0;
+void KernelExec(ExceptionInfo *info) {
+    int c;
+
+    char *fn = info->regs[1];
+    char **av = info->regs[2];
+
+    switch (c = LoadProgram(fn, av, info)) {
+    case ERROR:
+        info->regs[0] = ERROR;
+        return;
+
+    case -2:    // non-recoverable error
+        KernelExit(ERROR);
+
+    default:
+        return;
+    }
+
+
 }
 
-void Exit(int status) {
+void KernelExit(int status) {
     int i;
     struct process_info *parent = NULL;
 
@@ -211,7 +228,7 @@ void Exit(int status) {
 
 }
 
-int Wait(int *status_ptr) {
+int KernelWait(int *status_ptr) {
     TracePrintf(0, "WAIT: pid = %d\n", active_process->pid);
 
     if (active_process->active_children == 0
@@ -271,11 +288,11 @@ int Wait(int *status_ptr) {
     }
 }
 
-int GetPid(void) {
+int KernelGetPid(void) {
     return active_process->pid;
 }
 
-int Brk(void *addr) {
+int KernelBrk(void *addr) {
     int i;
     long new_brk = (long)UP_TO_PAGE(addr);
 
@@ -325,7 +342,7 @@ int Brk(void *addr) {
     return 0;
 }
 
-int Delay(int clock_ticks) {
+int KernelDelay(int clock_ticks) {
 	TracePrintf(0, "DELAY: pid = %d\n", active_process->pid);
 
 	if (clock_ticks < 0)
@@ -349,11 +366,11 @@ int Delay(int clock_ticks) {
     return 0;
  }
 
-int TtyRead(int tty_id, void *buf, int len) {
+int KernelTtyRead(int tty_id, void *buf, int len) {
     return 0;
 }
 
-int TtyWrite(int tty_id, void *buf, int len) {
+int KernelTtyWrite(int tty_id, void *buf, int len) {
     return 0;
 }
 

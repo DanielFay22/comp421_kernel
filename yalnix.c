@@ -103,7 +103,7 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
         TracePrintf(1, "new value %d\n", waiting_process->delay_ticks);
 
         if (waiting_process->delay_ticks < 1) {
-            TracePrintf(0, "process %d unblocking\n", waiting_process->pid);
+            TracePrintf(1, "process %d unblocking\n", waiting_process->pid);
 
             // Remove process from waiting queue
             remove_process(&waiting_queue, &wq_tail, waiting_process);
@@ -118,11 +118,12 @@ void trap_clock_handler(ExceptionInfo *exceptionInfo) {
     }
 
     // If any processes are available, switch to them.
-    TracePrintf(0, "pq before switch %p\n", (void*)process_queue);
-    if (last_switch - (++clock_count) <= -2 && process_queue != NULL) {
+    TracePrintf(1, "pq before switch %p\n", (void*)process_queue);
+    if ((last_switch - (++clock_count) <= -2 || active_process->pid == 0)
+    && process_queue != NULL) {
         struct process_info *next = pop_process(&process_queue, &pq_tail);
 
-        TracePrintf(0, "Popped process %d off queue\n", next->pid);
+        TracePrintf(1, "Popped process %d off queue\n", next->pid);
 
         last_switch = clock_count;
 
@@ -158,65 +159,6 @@ void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
 void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_receive_handler");
     Halt();
-}
-
-// Draft of context switch function
-SavedContext *ContextSwitchFunc(SavedContext *ctxp,
-    void *p1, void *p2) {
-
-    struct process_info *curProc = (struct process_info *)p1;
-    struct process_info *newProc = (struct process_info *)p2;
-
-    curProc->ctx = *ctxp;
-
-    active_process = newProc;
-
-    // Set region 0 page table to new process table
-    TracePrintf(0, "writing new region 0 PT addr %p\n", newProc->page_table);
-    WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
-    kernel_page_table[PAGE_TABLE_LEN - 1].pfn =
-        DOWN_TO_PAGE(newProc->page_table) >> PAGESHIFT;
-
-    // Flush region 0 entries from the TLB and page table entry from region 1
-    WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
-    WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) (VMEM_LIMIT - PAGESIZE));
-
-    return &newProc->ctx;
-}
-
-SavedContext *ContextSwitchInitHelper(SavedContext *ctxp,
-    void *p1, void *p2) {
-    int i;
-
-    //redefine the init PT pointer
-    struct pte *init_page_table = (struct pte *) (VMEM_LIMIT - PAGESIZE * 2);
-    //copy the Kernel Stack
-    for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
-        TracePrintf(1, "copying to %p from %p\n",(void*)(VMEM_LIMIT - 3 * PAGESIZE),(void*)(KERNEL_STACK_BASE + i * PAGESIZE));
-        struct pte  init_stack_entry = {
-            .pfn = alloc_page(),
-            .unused = 0b00000,
-            .uprot = PROT_NONE,
-            .kprot = PROT_READ | PROT_WRITE,
-            .valid = 0b1
-        };
-        kernel_page_table[PAGE_TABLE_LEN - 3] = init_stack_entry;
-        init_page_table[PAGE_TABLE_LEN - KERNEL_STACK_PAGES + i] = init_stack_entry;
-        WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) (VMEM_LIMIT - PAGESIZE * 3));
-        memcpy((void*)(VMEM_LIMIT - 3 * PAGESIZE), (void*)(KERNEL_STACK_BASE + i * PAGESIZE), PAGESIZE);
-    }
-
-    //Switch the idle region 0 Page Table for the Init Page Table
-    kernel_page_table[PAGE_TABLE_LEN - 1].pfn = (VMEM_LIMIT - PAGESIZE * 2) >> PAGESHIFT;
-    WriteRegister(REG_TLB_FLUSH, VMEM_LIMIT - PAGESIZE); 
-
-    //write the new Region 0 Page Table pointer to hardware and flush TLB
-    WriteRegister(REG_PTR0, (RCS421RegVal) init_page_table);
-    WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
-
-    active_process = (struct pte *) p1;
-
-    return ctxp;
 }
 
 struct pte *get_new_page_table() {
@@ -299,16 +241,24 @@ void free_page_table(struct pte *pt) {
     unsigned int pfn = ((unsigned int)pt) >> PAGESHIFT;
 
     struct available_page_table *head = page_tables;
+    struct available_page_table *prev = NULL;
     while (head != NULL) {
         if (((unsigned int)head->page_table) >> PAGESHIFT == pfn)
             break;
+        prev = head;
         head = head->next;
     }
 
     // If both halves of the page frame are not in use, free the page
-    if (head != NULL)
+    if (head != NULL) {
+        if (prev == NULL)
+            page_tables = head->next;
+        else
+            prev->next = head->next;
+
+        free(head);
         free_page(pfn);
-    else {
+    } else {
         // Otherwise add an entry to the list of free pagetables
         struct available_page_table *apt = (struct available_page_table *)
             malloc(sizeof(struct available_page_table));
@@ -356,9 +306,7 @@ int free_page(int pfn) {
 void push_process(struct process_info **head, struct process_info **tail,
     struct process_info *new_pcb) {
 
-    TracePrintf(0, "new_pcb = %x\n", new_pcb);
-
-    TracePrintf(0, "Pushing process %d onto PQ\n", new_pcb->pid);
+    TracePrintf(1, "PUSH PROCESS: Pushing process %d onto PQ\n", new_pcb->pid);
 
     if (*head == NULL) {
         *head = new_pcb;
@@ -380,8 +328,6 @@ void push_process(struct process_info **head, struct process_info **tail,
 struct process_info *pop_process(
     struct process_info **head, struct process_info **tail) {
 
-    TracePrintf(0, "Popping process off of queue\n");
-    
     struct process_info *new_head = *head;
 
     if (new_head != NULL) {
@@ -391,9 +337,6 @@ struct process_info *pop_process(
 
     if (*head != NULL)
         (*head)->prev_process = NULL;
-
-
-    TracePrintf(0, "Popping process %d off PQ\n", new_head->pid);
 
     return new_head;
 }
@@ -433,6 +376,8 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     //test with ./yalnix -lk 0 -lu 0 -n -s init1
     TracePrintf(0, "hello\n");
     int i;
+
+    process_queue = NULL;
 
     tot_pmem_size = pmem_size;
     tot_pmem_pages = pmem_size / PAGESIZE;
@@ -573,7 +518,9 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .user_brk = (void *)MEM_INVALID_SIZE,
         .page_table = (void *)idle_page_table,
         .parent = NO_PARENT,
-        .next_process = NULL
+        .next_process = NULL,
+        .active_children = 0,
+        .exited_children = 0
     };
 
     // enable virtual memory
@@ -592,7 +539,9 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .user_brk = (void *)MEM_INVALID_SIZE,
         .page_table = (void *)(VMEM_LIMIT - 2 * PAGESIZE),
         .delay_ticks = 0,
-        .parent = NO_PARENT
+        .parent = NO_PARENT,
+        .active_children = 0,
+        .exited_children = 0
     };
 
     // Get current context for init process
@@ -607,7 +556,6 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
     else {
         TracePrintf(0, "idle exiting kernelstart\n");
     }
-    process_queue = NULL;
 }
 
 

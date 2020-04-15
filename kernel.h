@@ -14,6 +14,8 @@
 
 #define NUM_RESERVED_KERNEL_PAGES   3
 
+#define CURRENT_PAGE_TABLE          ((struct pte *)(VMEM_LIMIT - PAGESIZE))
+
 unsigned int next_pid;
 
 
@@ -21,7 +23,9 @@ extern unsigned int alloc_page(void);
 extern int free_page(int pfn);
 
 extern SavedContext *ContextSwitchFunc(SavedContext *, void *, void *);
-SavedContext *ForkContextSwitchHelper(SavedContext *, void *, void *);
+extern SavedContext *ContextSwitchForkHelper(SavedContext *, void *, void *);
+extern SavedContext *ContextSwitchInitHelper(SavedContext *, void *, void *);
+extern SavedContext *ContextSwitchExitHelper(SavedContext *, void *, void *);
 
 extern int LoadProgram(char *name, char **args, ExceptionInfo *info);
 
@@ -51,6 +55,8 @@ struct process_info {
     SavedContext ctx;
     void *user_brk;
     unsigned int parent;
+    int active_children;
+    int exited_children;
     struct process_info *next_process;
     struct process_info *prev_process;
 };
@@ -66,6 +72,18 @@ struct process_info *wq_tail;
 
 
 int allocated_pages;
+
+
+struct exit_status {
+    unsigned int pid;
+    int status;
+    unsigned int parent;
+    struct exit_status *prev;
+    struct exit_status *next;
+};
+
+struct exit_status *exit_queue;
+struct exit_status *eq_tail;
 
 
 

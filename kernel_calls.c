@@ -445,14 +445,14 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
 
     //get the correct terminal info
     struct terminal_info *terminal = terminals[tty_id];
-    struct available_line *line = terminal->next_line;
+    struct available_line *line = (terminal->next_line);
 
     //if there are available lines on this terminal, use one
     if (line != NULL) {
         //if the first line is longer than this call is looking for
         if (len < line->len) {
             memcpy(buf, (void*)line->line, len);
-            //update the avaliable line
+            //update the available line
             line->len = line->len - len;
             line->line += len;
             return len;
@@ -461,7 +461,7 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
             //move the line queue up
             terminal->next_line = line->next;
             memcpy(buf, line->line, line->len);
-            //free the avaliable line
+            //free the available line
             free(line->orig_ptr);
             len = line->len;
             free(line);

@@ -250,6 +250,11 @@ void KernelExit(int status) {
     struct process_info *next = pop_process(&process_queue, &pq_tail);
     if (next == NULL) {
         TracePrintf(1, "EXIT: Switching to idle process\n");
+
+        // If all processes have exited, exit the kernel
+        if (process_queue == NULL && waiting_queue == NULL)
+            Halt();
+
         next = idle;
     }
 

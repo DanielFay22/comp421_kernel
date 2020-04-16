@@ -13,6 +13,7 @@ void RemoveSwitch(void) {
     ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
         (void *)active_process, (void *)next);
 }
+
 /*
  * Basic Context Switch function used for switching between two processes.
  *

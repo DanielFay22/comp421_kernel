@@ -435,9 +435,9 @@ int KernelDelay(int clock_ticks) {
     return 0;
  }
 
- /*
-  * Implements the TtyRead() kernel call.
-  */
+/*
+ * Implements the TtyRead() kernel call.
+ */
 int KernelTtyRead(int tty_id, void *buf, int len) {
     if (len == 0) {
         return 0;

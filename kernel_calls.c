@@ -326,6 +326,7 @@ int KernelWait(int *status_ptr) {
             // Get the next available process. If none is available,
             // switch to idle
             struct process_info *next = pop_process(&process_queue, &pq_tail);
+
             if (next == NULL)
                 next = idle;
 
@@ -497,21 +498,21 @@ int KernelTtyWrite(int tty_id, void *buf, int len) {
     struct terminal_info *terminal = terminals[tty_id];
     
     if (terminal->w_head != NULL) {
-        TracePrintf(0, "Process %d entering write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
+        TracePrintf(0, "TtyWrite: Process %d entering write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
         push_process(&terminal->w_head, &terminal->w_tail, active_process);
 
         RemoveSwitch();
 
-        TracePrintf(0, "Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
+        TracePrintf(0, "TtyWrite: Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
         TtyTransmit(tty_id, buf, len);
 
         pop_process(&terminal->w_head, &terminal->w_tail);
     }
     else {
-        TracePrintf(0, "No write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
+        TracePrintf(0, "TtyWrite: No write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
         push_process(&terminal->w_head, &terminal->w_tail, active_process);
 
-        TracePrintf(0, "Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
+        TracePrintf(0, "TtyWrite: Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
         TtyTransmit(tty_id, buf, len);
 
         pop_process(&terminal->w_head, &terminal->w_tail);

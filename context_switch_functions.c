@@ -37,6 +37,9 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     struct process_info *curProc = (struct process_info *)p1;
     struct process_info *newProc = (struct process_info *)p2;
 
+    TracePrintf(1, "CONTEXT SWITCH: Current process - %d, New process - %d\n",
+        curProc->pid, newProc->pid);
+
     active_process = newProc;
 
     // Set region 0 page table to new process table
@@ -45,9 +48,17 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     kernel_page_table[PAGE_TABLE_LEN - 1].pfn =
         DOWN_TO_PAGE(newProc->page_table) >> PAGESHIFT;
 
+    TracePrintf(1, "CONTEXT SWITCH: Flushing TLB\n");
     // Flush region 0 entries from the TLB and page table entry from region 1
     WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
     WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) (VMEM_LIMIT - PAGESIZE));
+
+    struct pte *active_page_table = VMEM_LIMIT - PAGESIZE;
+    TracePrintf(1, "CONTEXT SWITCH: Kernel stack pfns: %d, %d, %d, %d\n",
+        active_page_table[PAGE_TABLE_LEN - 4].pfn,
+        active_page_table[PAGE_TABLE_LEN - 3].pfn,
+        active_page_table[PAGE_TABLE_LEN - 2].pfn,
+        active_page_table[PAGE_TABLE_LEN - 1].pfn);
 
     return &newProc->ctx;
 }

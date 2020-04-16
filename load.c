@@ -72,9 +72,9 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 	    close(fd);
 	    return (-1);
     }
-    TracePrintf(0, "text_size 0x%lx, data_size 0x%lx, bss_size 0x%lx\n",
+    TracePrintf(0, "LoadProgram: text_size 0x%lx, data_size 0x%lx, bss_size 0x%lx\n",
         li.text_size, li.data_size, li.bss_size);
-    TracePrintf(0, "entry 0x%lx\n", li.entry);
+    TracePrintf(0, "LoadProgram: entry 0x%lx\n", li.entry);
 
     /*
      *  Figure out how many bytes are needed to hold the arguments on
@@ -85,9 +85,9 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     argcount = 0;
     if (args != NULL) {
         size = 0;
-        //can't use i
-        TracePrintf(0, "%s\n", args[i]);
+
         for (i = 0; args[i] != NULL; i++) {
+            TracePrintf(0, "LoadProgram: %s\n", args[i]);
     	    size += strlen(args[i]) + 1;
         }
         argcount = i;
@@ -118,6 +118,8 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     cp = ((char *)USER_STACK_LIMIT) - size;
     cpp = (char **)((unsigned long)cp & (-1 << 4));	/* align cpp */
     cpp = (char **)((unsigned long)cpp - ((argcount + 4) * sizeof(void *)));
+
+    TracePrintf(10, "LoadProgram: Assigned pointers\n");
 
     text_npg = li.text_size >> PAGESHIFT;
     data_bss_npg = UP_TO_PAGE(li.data_size + li.bss_size) >> PAGESHIFT;

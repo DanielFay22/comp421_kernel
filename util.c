@@ -33,13 +33,13 @@ struct pte *get_new_page_table() {
     } else {
         // Allocate a new page
         unsigned int pfn = alloc_page();
-        struct available_page_table *pt_ptr = (struct available_page_table *)
-            malloc(sizeof(struct available_page_table));
-
-        // Add the extra half page to the free tables list
-        pt_ptr->page_table = (void *)(pfn << PAGESHIFT + PAGESIZE / 2);
-        pt_ptr->next = page_tables;
-        page_tables = pt_ptr;
+//        struct available_page_table *pt_ptr = (struct available_page_table *)
+//            malloc(sizeof(struct available_page_table));
+//
+//        // Add the extra half page to the free tables list
+//        pt_ptr->page_table = (void *)(pfn << PAGESHIFT + PAGESIZE / 2);
+//        pt_ptr->next = page_tables;
+//        page_tables = pt_ptr;
 
         page_table = (void *)(pfn << PAGESHIFT);
     }
@@ -57,36 +57,36 @@ struct pte *get_new_page_table() {
  */
 void free_page_table(struct pte *pt) {
     unsigned int pfn = ((unsigned int)pt) >> PAGESHIFT;
-
-    struct available_page_table *head = page_tables;
-    struct available_page_table *prev = NULL;
-    while (head != NULL) {
-        if (((unsigned int)head->page_table) >> PAGESHIFT == pfn)
-            break;
-        prev = head;
-        head = head->next;
-    }
-
-    // If both halves of the page frame are not in use, free the page
-    if (head != NULL) {
-        if (prev == NULL)
-            page_tables = head->next;
-        else
-            prev->next = head->next;
-
-        free(head);
-        free_page(pfn);
-    } else {
-        // Otherwise add an entry to the list of free pagetables
-        struct available_page_table *apt = (struct available_page_table *)
-            malloc(sizeof(struct available_page_table));
-        *apt = (struct available_page_table) {
-            .page_table = (void *)pt,
-            .next = page_tables
-        };
-
-        page_tables = apt;
-    }
+    free_page(pfn);
+//    struct available_page_table *head = page_tables;
+//    struct available_page_table *prev = NULL;
+//    while (head != NULL) {
+//        if (((unsigned int)head->page_table) >> PAGESHIFT == pfn)
+//            break;
+//        prev = head;
+//        head = head->next;
+//    }
+//
+//    // If both halves of the page frame are not in use, free the page
+//    if (head != NULL) {
+//        if (prev == NULL)
+//            page_tables = head->next;
+//        else
+//            prev->next = head->next;
+//
+//        free(head);
+//        free_page(pfn);
+//    } else {
+//        // Otherwise add an entry to the list of free pagetables
+//        struct available_page_table *apt = (struct available_page_table *)
+//            malloc(sizeof(struct available_page_table));
+//        *apt = (struct available_page_table) {
+//            .page_table = (void *)pt,
+//            .next = page_tables
+//        };
+//
+//        page_tables = apt;
+//    }
 
 }
 

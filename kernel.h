@@ -25,12 +25,12 @@
 
 
 // Struct definitions
-struct avaliable_line {
+struct available_line {
     char *line;
     char *orig_ptr;
     unsigned int free : 1;
     int len;
-    struct avaliable_line *next;
+    struct available_line *next;
 };
 
 struct terminal_info {
@@ -40,8 +40,8 @@ struct terminal_info {
     struct process_info *w_head;
     struct process_info *w_tail;
 
-    struct avaliable_line *next_line;
-    struct avaliable_line *last_line;
+    struct available_line *next_line;
+    struct available_line *last_line;
 };
 
 struct process_info {
@@ -56,7 +56,7 @@ struct process_info {
     int exited_children;
     struct process_info *next_process;
     struct process_info *prev_process;
-    struct avaliable_line *line;
+    struct available_line *line;
     int seeking_len;
 };
 

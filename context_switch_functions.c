@@ -6,12 +6,19 @@
 void RemoveSwitch(void) {
     struct process_info *next = pop_process(&process_queue, &pq_tail);
 
-    TracePrintf(1, "Popped process %d off queue\n", next->pid);
+    if (next == NULL) {
+        TracePrintf(1, "Switching from pid %d to %d\n", active_process->pid, idle->pid);
+        ContextSwitch(ContextSwitchFunc, &active_process->ctx,
+            (void*)active_process, (void*)idle);
+    }
+    else {
+        TracePrintf(1, "Popped process %d off queue\n", next->pid);
 
-    last_switch = clock_count;
+        last_switch = clock_count;
 
-    ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
-        (void *)active_process, (void *)next);
+        ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
+            (void *)active_process, (void *)next);
+    }
 }
 
 /*

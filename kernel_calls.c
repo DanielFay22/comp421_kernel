@@ -445,14 +445,14 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
 
     //get the correct terminal info
     struct terminal_info *terminal = terminals[tty_id];
-    struct available_line *line = terminal->next_line;
+    struct available_line *line = (terminal->next_line);
 
     //if there are available lines on this terminal, use one
     if (line != NULL) {
         //if the first line is longer than this call is looking for
         if (len < line->len) {
             memcpy(buf, (void*)line->line, len);
-            //update the avaliable line
+            //update the available line
             line->len = line->len - len;
             line->line += len;
             return len;
@@ -461,7 +461,7 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
             //move the line queue up
             terminal->next_line = line->next;
             memcpy(buf, line->line, line->len);
-            //free the avaliable line
+            //free the available line
             free(line->orig_ptr);
             len = line->len;
             free(line);
@@ -493,19 +493,30 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
  */
 int KernelTtyWrite(int tty_id, void *buf, int len) {
     TracePrintf(0, "TtyWrite\n");
-    Halt();
-    // if (terminals_w[tty_id] == NULL) {
-    //     terminals_w[tty_id]->head = active_process;
-    //     terminals_w[tty_id]->tail = active_process;
 
-    //     TtyTransmit(tty_id, buf, len);
-    //     RemoveSwitch();
-    // }
-    // else {
-    //     push_process(&terminals_w[tty_id]->head, &terminals_w[tty_id]->tail, terminals_w[tty_id]);
+    struct terminal_info *terminal = terminals[tty_id];
+    
+    if (terminal->w_head != NULL) {
+        TracePrintf(0, "Process %d entering write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
+        push_process(&terminal->w_head, &terminal->w_tail, active_process);
 
-    //     RemoveSwitch();
-    // }
-    // return len;
+        RemoveSwitch();
+
+        TracePrintf(0, "Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
+        TtyTransmit(tty_id, buf, len);
+
+        pop_process(&terminal->w_head, &terminal->w_tail);
+    }
+    else {
+        TracePrintf(0, "No write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
+        push_process(&terminal->w_head, &terminal->w_tail, active_process);
+
+        TracePrintf(0, "Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
+        TtyTransmit(tty_id, buf, len);
+
+        pop_process(&terminal->w_head, &terminal->w_tail);
+    }
+    
+    return len;
 }
 

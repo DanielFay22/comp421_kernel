@@ -1,5 +1,5 @@
 
-
+#include<stdlib.h>
 #include "kernel.h"
 
 /*
@@ -65,8 +65,6 @@ void trap_kernel_handler(ExceptionInfo *exceptionInfo) {
 void trap_clock_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_clock_handler - Active process: %u\n",
                 active_process->pid);
-
-    struct process_info* temp;
 
     // Decrement all waiting processes and move any completed
     // processes onto the ready queue.
@@ -177,14 +175,14 @@ void trap_memory_handler(ExceptionInfo *exceptionInfo) {
 
     void *addr = exceptionInfo->addr;
 
-    if (addr > USER_STACK_LIMIT) {
+    if ((long)addr > USER_STACK_LIMIT) {
         printf("ERROR: Process %d attempted to access an invalid address: %p\n",
             active_process->pid, addr);
         KernelExit(ERROR);
     }
 
     // Check if expanding stack pushes into the heap.
-    if (DOWN_TO_PAGE(addr) - PAGESIZE < active_process->user_brk) {
+    if (DOWN_TO_PAGE(addr) - PAGESIZE < (long)(active_process->user_brk) ) {
         printf("ERROR: Stackoverflow, process %d\n", active_process->pid);
         KernelExit(ERROR);
     }
@@ -268,7 +266,14 @@ void trap_math_handler(ExceptionInfo *exceptionInfo) {
  */
 void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_transmit_handler");
-    Halt();
+
+    struct terminal_info *terminal = terminals[exceptionInfo->code];
+
+    struct process_info *popped = pop_process(&terminal->w_head, &terminal->w_tail);
+
+    if (popped != NULL) {
+        push_process(&process_queue, &pq_tail, popped);
+    }
 }
 
 /*
@@ -278,22 +283,22 @@ void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
     TracePrintf(1, "trap_tty_receive_handler");
 
     //get the correct terminal info
-    int term = info->code;
+    int term = exceptionInfo->code;
     struct terminal_info *terminal = terminals[term];
 
     //read the line into a buffer
     char *newline = (char *)malloc(TERMINAL_MAX_LINE);
     int len = TtyReceive(term, newline, TERMINAL_MAX_LINE);
 
-    //initialize an avaliable line struct to represent this input line
-    struct avaliable_line *new = (struct avaliable_line *) malloc(sizeof(struct avaliable_line));
-        *new = (struct avaliable_line) {
+    //initialize an available line struct to represent this input line
+    struct available_line *new = (struct available_line *) malloc(sizeof(struct available_line));
+        *new = (struct available_line) {
             .line = newline,
             .orig_ptr = newline,
             .free = 1,
             .len = len,
             .next = NULL
-        }
+        };
 
     //pop process off the terminal's read wait queue
     struct process_info *popped = pop_process(&terminal->r_head, &terminal->r_tail);
@@ -302,13 +307,13 @@ void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
         //if the popped process was seeking less characters than the line len
         if (popped->seeking_len < len) {
             //make a new avaliable line struct to attach to pcb
-            struct available_line *newnew = (struct avaliable_line *) malloc(sizeof(struct avaliable_line));
-            *newnew = (struct avaliable_line) {
+            struct available_line *newnew = (struct available_line *) malloc(sizeof(struct available_line));
+            *newnew = (struct available_line) {
                 .line = newline,
                 .free = 0,
                 .len = popped->seeking_len,
                 .next = NULL
-            }
+            };
             //attach the line to process pcb and return it to the process queue
             popped->line = newnew;
             push_process(&process_queue, &pq_tail, popped);
@@ -322,19 +327,21 @@ void trap_tty_receive_handler(ExceptionInfo *exceptionInfo) {
         //popped process consumes the rest of the line
         else {
             popped->line = new;
-            push_process(&process_queue, &pq_tail);
+            push_process(&process_queue, &pq_tail, popped);
             len = 0;
             break;
         }
         popped = pop_process(&terminal->r_head, &terminal->r_tail);
     }
     
-    //add any remaining line input to the avaliable lines
+    //add any remaining line input to the available lines
     if(len > 0) {
+        //if there are no avaliable lines on this terminal, start the queue
         if (terminal->next_line == NULL) {
         terminal->next_line = new;
         terminal->last_line = new;
         }
+        //else add to it
         else {
             (terminal->last_line)->next = new;
             terminal->last_line = (terminal->last_line)->next; 

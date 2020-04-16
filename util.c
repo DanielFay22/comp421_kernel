@@ -147,7 +147,7 @@ int free_page(int pfn) {
 void push_process(struct process_info **head, struct process_info **tail,
     struct process_info *new_pcb) {
 
-    TracePrintf(1, "PUSH PROCESS: Pushing process %d onto PQ\n", new_pcb->pid);
+    TracePrintf(1, "PUSH PROCESS: Pushing process %d onto a queue\n", new_pcb->pid);
 
     if (*head == NULL) {
         *head = new_pcb;

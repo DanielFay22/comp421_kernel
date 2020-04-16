@@ -510,6 +510,9 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
 int KernelTtyWrite(int tty_id, void *buf, int len) {
     TracePrintf(0, "TtyWrite\n");
 
+    if (len > TERMINAL_MAX_LINE)
+        return ERROR;
+
     struct terminal_info *terminal = terminals[tty_id];
     
     TracePrintf(0, "TtyWrite: Process %d entering write queue on "

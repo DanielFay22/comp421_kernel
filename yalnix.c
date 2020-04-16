@@ -170,6 +170,17 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .exited_children = 0
     };
 
+    // Insert idle to list of all processes
+    all_processes = (struct active_process *)
+        malloc(sizeof(struct active_process));
+
+    *all_processes = (struct active_process) {
+        .pid = 0,
+        .pcb = idle,
+        .next = NULL,
+        .prev = NULL
+    };
+
     // enable virtual memory
     TracePrintf(0, "enabling vmem\n");
     WriteRegister(REG_VM_ENABLE, 1);
@@ -190,6 +201,17 @@ void KernelStart(ExceptionInfo *info, unsigned int pmem_size,
         .active_children = 0,
         .exited_children = 0
     };
+
+    // Insert init into the list of all processes
+    struct active_process *init_process = (struct active_process *)
+        malloc(sizeof(struct active_process));
+    *init_process = (struct active_process) {
+        .pid = init->pid,
+        .pcb = init,
+        .prev = all_processes,
+        .next = NULL
+    };
+    all_processes->next = init_process;
 
     // Get current context for init process
     ContextSwitch(ContextSwitchInitHelper, (SavedContext *)&idle->ctx,

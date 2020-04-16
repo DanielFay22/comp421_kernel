@@ -117,6 +117,18 @@ int KernelFork(void) {
     TracePrintf(1, "FORK: Adding PCB to queue\n");
     push_process(&process_queue, &pq_tail, pcb);
 
+    // Add process to list of all processes
+    struct active_process *new_process = (struct active_process *)
+        malloc(sizeof(struct active_process));
+    *new_process = (struct active_process) {
+        .pid = pcb->pid,
+        .pcb = pcb,
+        .prev = NULL,
+        .next = all_processes
+    };
+    all_processes->prev = new_process;
+    all_processes = new_process;
+
     // Use context switch to get context for child process
     ContextSwitch(ContextSwitchForkHelper, &(pcb->ctx), NULL, NULL);
 
@@ -176,6 +188,7 @@ void KernelExec(ExceptionInfo *info) {
 void KernelExit(int status) {
     int i;
     struct process_info *parent = NULL;
+    struct active_process *current_proc = NULL;
 
     TracePrintf(0, "EXIT: pid = %d\n", active_process->pid);
 
@@ -184,29 +197,31 @@ void KernelExit(int status) {
 
     // Find the parent process if it is still active.
     if (active_process->parent != NO_PARENT) {
-        struct process_info *head = process_queue;
+        struct active_process *head = all_processes;
 
         while (head != NULL) {
-            if (head->pid == active_process->parent) {
-                parent = head;
-                break;
-            }
-            head = head->next_process;
+            if (head->pid == active_process->parent)
+                parent = head->pcb;
+            if (head->pid == active_process->pid)
+                current_proc = head;
+
+            head = head->next;
         }
 
-        if (parent == NULL)
-            head = waiting_queue;
+        TracePrintf(1, "EXIT: Found parent of process %d\n", active_process->pid);
+    }
+
+    // Remove current process from list of all processes
+    if (current_proc != NULL) {
+        if (current_proc->next != NULL)
+            current_proc->next->prev = current_proc->prev;
+
+        if (current_proc->prev == NULL)
+            all_processes = current_proc->next;
         else
-            head = NULL;
+            current_proc->prev->next = current_proc->next;
 
-        while (head != NULL) {
-            if (head->pid == active_process->parent) {
-                parent = head;
-                break;
-            }
-            head = head->next_process;
-        }
-
+        free(current_proc);
     }
 
 
@@ -497,26 +512,24 @@ int KernelTtyWrite(int tty_id, void *buf, int len) {
 
     struct terminal_info *terminal = terminals[tty_id];
     
-    if (terminal->w_head != NULL) {
-        TracePrintf(0, "TtyWrite: Process %d entering write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
-        push_process(&terminal->w_head, &terminal->w_tail, active_process);
+    TracePrintf(0, "TtyWrite: Process %d entering write queue on "
+                   "terminal %d queue\n", active_process->pid, tty_id);
 
+    push_process(&terminal->w_head, &terminal->w_tail, active_process);
+
+    // If terminal is still busy, context switch away until next
+    // TRAP_TTY_TRANSMIT is received
+    if (terminal->busy == 1)
         RemoveSwitch();
 
-        TracePrintf(0, "TtyWrite: Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
-        TtyTransmit(tty_id, buf, len);
+    pop_process(&terminal->w_head, &terminal->w_tail);
 
-        pop_process(&terminal->w_head, &terminal->w_tail);
-    }
-    else {
-        TracePrintf(0, "TtyWrite: No write queue on terminal %d queue, starting one\n", active_process->pid, tty_id);
-        push_process(&terminal->w_head, &terminal->w_tail, active_process);
+    TracePrintf(0, "TtyWrite: Writing %d bytes to terminal %d from "
+                   "virtual address %p\n", len, tty_id, (void*)buf);
 
-        TracePrintf(0, "TtyWrite: Writing %d bytes to terminal %d from virtual address %p\n", len, tty_id, (void*)buf);
-        TtyTransmit(tty_id, buf, len);
+    TtyTransmit(tty_id, buf, len);
 
-        pop_process(&terminal->w_head, &terminal->w_tail);
-    }
+    terminal->busy = 1;
     
     return len;
 }

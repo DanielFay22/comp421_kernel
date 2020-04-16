@@ -269,11 +269,13 @@ void trap_tty_transmit_handler(ExceptionInfo *exceptionInfo) {
 
     struct terminal_info *terminal = terminals[exceptionInfo->code];
 
-    struct process_info *popped = pop_process(&terminal->w_head, &terminal->w_tail);
+    struct process_info *popped = pop_process(&terminal->w_head,
+        &terminal->w_tail);
 
-    if (popped != NULL) {
+    terminal->busy = 0;
+
+    if (popped != NULL)
         push_process(&process_queue, &pq_tail, popped);
-    }
 }
 
 /*

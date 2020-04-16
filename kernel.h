@@ -40,6 +40,8 @@ struct terminal_info {
     struct process_info *w_head;
     struct process_info *w_tail;
 
+    unsigned int busy;
+
     struct available_line *next_line;
     struct available_line *last_line;
 };
@@ -72,7 +74,16 @@ struct exit_status {
     struct exit_status *next;
 };
 
+struct active_process {
+    unsigned int pid;
+    struct process_info *pcb;
+    struct active_process *prev;
+    struct active_process *next;
+};
+
 struct terminal_info *terminals[NUM_TERMINALS];
+
+struct active_process *all_processes;
 
 // Util function definitions
 extern struct pte *get_new_page_table(void);

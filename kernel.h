@@ -2,16 +2,9 @@
 #ifndef _kernel_h
 #define _kernel_h
 
-#ifndef _yalnix_h
-#include "comp421/yalnix.h"
 
-#endif
-
-#ifndef _hardware_h
-#include "comp421/hardware.h"
-
-#endif
-
+#include <comp421/hardware.h>
+#include <comp421/yalnix.h>
 #include <stddef.h>
 #include <stdio.h>
 

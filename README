@@ -1,0 +1,14 @@
+
+Project Members:
+Daniel Fay, dpf2
+Tucker Reinhardt, tbr1
+
+
+Testing:
+For testing we first wrote small functions designed to stress
+the various functions as we implemented them. In order to confirm
+proper function, we added debugging statements throughout the
+program and checked the values were as expected throughout
+execution. After completing this, we then launched the provided
+console and shells. From these we ran each of the remaining provided
+tests.

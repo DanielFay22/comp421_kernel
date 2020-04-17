@@ -160,6 +160,11 @@ void KernelExec(ExceptionInfo *info) {
     char *fn = info->regs[1];
     char **av = info->regs[2];
 
+    if (fn == NULL) {
+        info->regs[0] = ERROR;
+        return;
+    }
+
     // In case of error, either return or exit with ERROR status
     switch (c = LoadProgram(fn, av, info)) {
     case ERROR: // Continue running
@@ -338,19 +343,9 @@ int KernelWait(int *status_ptr) {
         } else {    // If no children have exited, block
             TracePrintf(1, "WAIT: No children exited, blocking\n");
 
-            // Get the next available process. If none is available,
-            // switch to idle
-            struct process_info *next = pop_process(&process_queue, &pq_tail);
-
-            if (next == NULL)
-                next = idle;
-
-            // Return the current process to the queue
-            push_process(&process_queue, &pq_tail, active_process);
-
-            // Switch to the new process
-            ContextSwitch(ContextSwitchFunc, &(active_process->ctx),
-                (void *)active_process, (void *)next);
+            // Delay for 1 tick -> prevents starvation when two waiting calls
+            // repeatedly switch.
+            KernelDelay(1);
         }
     }
 }
@@ -438,16 +433,16 @@ int KernelDelay(int clock_ticks) {
     push_process(&waiting_queue, &wq_tail, active_process);
 
     // Switch to next available process, or idle if no process ready
-    if (process_queue != NULL) {
-    	struct process_info *next = pop_process(&process_queue, &pq_tail);
-    	ContextSwitch(ContextSwitchFunc, &active_process->ctx,
-            (void *)active_process, (void *)next);
-    }
-    else {
-    	TracePrintf(1, "Switching from pid %d to %d\n", active_process->pid, idle->pid);
-    	ContextSwitch(ContextSwitchFunc, &active_process->ctx,
-    		(void*)active_process, (void*)idle);
-    }
+    struct process_info *next = pop_process(&process_queue, &pq_tail);
+    if (next == NULL)
+        next = idle;
+
+    TracePrintf(1, "DELAY: Switching from pid %d to %d\n", active_process->pid,
+        next->pid);
+
+    ContextSwitch(ContextSwitchFunc, &active_process->ctx,
+        (void *)active_process, (void *)next);
+
     return 0;
  }
 
@@ -515,7 +510,7 @@ int KernelTtyWrite(int tty_id, void *buf, int len) {
 
     struct terminal_info *terminal = terminals[tty_id];
     
-    TracePrintf(0, "TtyWrite: Process %d entering write queue on "
+    TracePrintf(1, "TtyWrite: Process %d entering write queue on "
                    "terminal %d queue\n", active_process->pid, tty_id);
 
     push_process(&terminal->w_head, &terminal->w_tail, active_process);
@@ -527,7 +522,7 @@ int KernelTtyWrite(int tty_id, void *buf, int len) {
 
     pop_process(&terminal->w_head, &terminal->w_tail);
 
-    TracePrintf(0, "TtyWrite: Writing %d bytes to terminal %d from "
+    TracePrintf(1, "TtyWrite: Writing %d bytes to terminal %d from "
                    "virtual address %p\n", len, tty_id, (void*)buf);
 
     TtyTransmit(tty_id, buf, len);

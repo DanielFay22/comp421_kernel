@@ -159,7 +159,7 @@ void trap_illegal_handler(ExceptionInfo *exceptionInfo) {
         break;
     }
 
-    printf("ERROR: Process %d terminated. Reason: %s\n",
+    fprintf(stderr, "ERROR: Process %d terminated. Reason: %s\n",
         active_process->pid, msg);
 
     KernelExit(ERROR);
@@ -175,15 +175,16 @@ void trap_memory_handler(ExceptionInfo *exceptionInfo) {
 
     void *addr = exceptionInfo->addr;
 
-    if ((long)addr > USER_STACK_LIMIT) {
-        printf("ERROR: Process %d attempted to access an invalid address: %p\n",
+    if ((long)addr > USER_STACK_LIMIT || (long)addr < MEM_INVALID_SIZE) {
+        fprintf(stderr, "ERROR: Process %d attempted to access an invalid address: %p\n",
             active_process->pid, addr);
         KernelExit(ERROR);
     }
 
     // Check if expanding stack pushes into the heap.
     if (DOWN_TO_PAGE(addr) - PAGESIZE < (long)(active_process->user_brk) ) {
-        printf("ERROR: Stackoverflow, process %d\n", active_process->pid);
+        fprintf(stderr, "ERROR: Stackoverflow, process %d, requested address %p\n",
+            active_process->pid, (void *)addr);
         KernelExit(ERROR);
     }
 
@@ -197,7 +198,7 @@ void trap_memory_handler(ExceptionInfo *exceptionInfo) {
         >> PAGESHIFT;
 
     if (num_new_pages > tot_pmem_pages - allocated_pages) {
-        printf("ERROR: Unable to allocate memory for stack, process %d\n",
+        fprintf(stderr, "ERROR: Unable to allocate memory for stack, process %d\n",
             active_process->pid);
         KernelExit(ERROR);
     }
@@ -255,7 +256,7 @@ void trap_math_handler(ExceptionInfo *exceptionInfo) {
         break;
     }
 
-    printf("ERROR: Process %d terminated. Reason: %s\n",
+    fprintf(stderr, "ERROR: Process %d terminated. Reason: %s\n",
         active_process->pid, msg);
 
     KernelExit(ERROR);

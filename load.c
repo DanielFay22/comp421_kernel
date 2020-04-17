@@ -119,13 +119,13 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     cpp = (char **)((unsigned long)cp & (-1 << 4));	/* align cpp */
     cpp = (char **)((unsigned long)cpp - ((argcount + 4) * sizeof(void *)));
 
-    TracePrintf(10, "LoadProgram: Assigned pointers\n");
+    TracePrintf(2, "LoadProgram: Assigned pointers\n");
 
     text_npg = li.text_size >> PAGESHIFT;
     data_bss_npg = UP_TO_PAGE(li.data_size + li.bss_size) >> PAGESHIFT;
     stack_npg = (USER_STACK_LIMIT - DOWN_TO_PAGE(cpp)) >> PAGESHIFT;
 
-    TracePrintf(10, "LoadProgram: text_npg %d, data_bss_npg %d, stack_npg %d\n",
+    TracePrintf(2, "LoadProgram: text_npg %d, data_bss_npg %d, stack_npg %d\n",
         text_npg, data_bss_npg, stack_npg);
 
     /*
@@ -174,7 +174,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
             (page_table + i)->valid = 0;
         }
     }
-    TracePrintf(10, "LoadProgram: freed stack from PT at %p\n", page_table);
+    TracePrintf(2, "LoadProgram: freed stack from PT at %p\n", page_table);
 
     /*
      *  Fill in the page table with the right number of text,
@@ -186,7 +186,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     /* First, the text pages */
     for (i = MEM_INVALID_PAGES; i < MEM_INVALID_PAGES + text_npg; ++i) {
-        TracePrintf(10, "text pages %p\n", page_table + i);
+        TracePrintf(2, "text pages %p\n", page_table + i);
         *(page_table + i) = (struct pte){
             .valid = 1,
             .kprot = PROT_READ | PROT_WRITE,
@@ -197,7 +197,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     /* Then the data and bss pages */
     for (; i < MEM_INVALID_PAGES + text_npg + data_bss_npg; ++i) {
-        TracePrintf(10, "data/bss pages %p\n", page_table + i);
+        TracePrintf(2, "data/bss pages %p\n", page_table + i);
         *(page_table + i) = (struct pte){
             .valid = 1,
             .kprot = PROT_READ | PROT_WRITE,
@@ -209,7 +209,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 
     /* And finally the user stack pages */
     for (i = 1; i <= stack_npg; ++i) {
-        TracePrintf(10, "user stack pages %p\n", page_table + i);
+        TracePrintf(2, "user stack pages %p\n", page_table + i);
         *(page_table + USER_STACK_LIMIT / PAGESIZE - i) = (struct pte){
             .valid = 1,
             .kprot = PROT_READ | PROT_WRITE,
@@ -217,7 +217,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
             .pfn = alloc_page()
         };
     }
-    TracePrintf(10, "done with pages\n");
+    TracePrintf(2, "done with pages\n");
 
     // Update the user page count.
     active_process->user_pages = data_bss_npg + text_npg + stack_npg;
@@ -230,18 +230,18 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
      *  we'll be able to do the read() into the new pages below.
      */
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
-    TracePrintf(10, "flushed tlb\n");
+    TracePrintf(2, "flushed tlb\n");
 
     /*
      *  Read the text and data from the file into memory.
      */
     if (read(fd, (void *)MEM_INVALID_SIZE, li.text_size+li.data_size) != li.text_size+li.data_size) {
-        TracePrintf(10, "LoadProgram: couldn't read for '%s'\n", name);
+        TracePrintf(2, "LoadProgram: couldn't read for '%s'\n", name);
         free(argbuf);
         close(fd);
         return (-2);
     }
-    TracePrintf(10, "read\n");
+    TracePrintf(2, "read\n");
     close(fd);			/* we've read it all now */
 
     /*
@@ -251,21 +251,21 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     for (i = MEM_INVALID_PAGES; i < MEM_INVALID_PAGES + text_npg; ++i)
         (page_table + i)->kprot = PROT_READ | PROT_EXEC;
 
-    TracePrintf(10,"text prots set\n");
+    TracePrintf(2,"text prots set\n");
 
     WriteRegister(REG_TLB_FLUSH, TLB_FLUSH_0);
-    TracePrintf(10,"flushed again\n");
+    TracePrintf(2,"flushed again\n");
     /*
      *  Zero out the bss
      */
     memset((void *)(MEM_INVALID_SIZE + li.text_size + li.data_size),
         '\0', li.bss_size);
-    TracePrintf(10,"zerod out bss\n");
+    TracePrintf(2,"zerod out bss\n");
     /*
      *  Set the entry point in the exception frame.
      */
     info->pc = (void *)li.entry;
-    TracePrintf(10, "set pc to %p\n", (void*) li.entry);
+    TracePrintf(2, "set pc to %p\n", (void*) li.entry);
     /*
      *  Now, finally, build the argument list on the new stack.
      */
@@ -277,7 +277,7 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
 	    cp += strlen(cp) + 1;
 	    cp2 += strlen(cp2) + 1;
     }
-    TracePrintf(10, "argv set\n");
+    TracePrintf(2, "argv set\n");
     if (argcount > 0)
         free(argbuf);
     *cpp++ = NULL;	/* the last argv is a NULL pointer */
@@ -293,6 +293,6 @@ LoadProgram(char *name, char **args, ExceptionInfo *info)
     for (i = 0; i < NUM_REGS; ++i)
         info->regs[i] = 0;
     info->psr = 0;
-    TracePrintf(10, "PSR set\n");
+    TracePrintf(2, "PSR set\n");
     return (0);
 }

@@ -205,6 +205,8 @@ void KernelExit(int status) {
         struct active_process *head = all_processes;
 
         while (head != NULL) {
+            TracePrintf(1, "EXIT: process = %d, prev = %p, next = %p\n",
+                head->pid, (void *) head->prev, (void *) head->next);
             if (head->pid == active_process->parent)
                 parent = head->pcb;
             if (head->pid == active_process->pid)
@@ -212,12 +214,12 @@ void KernelExit(int status) {
 
             head = head->next;
         }
-
-        TracePrintf(1, "EXIT: Found parent of process %d\n", active_process->pid);
     }
 
     // Remove current process from list of all processes
     if (current_proc != NULL) {
+        TracePrintf(1, "EXIT: Freeing curproc with pid %d\n",
+            current_proc->pid);
         if (current_proc->next != NULL)
             current_proc->next->prev = current_proc->prev;
 
@@ -263,13 +265,15 @@ void KernelExit(int status) {
 
         --(parent->active_children);
         ++(parent->exited_children);
+
+        TracePrintf(1, "EXIT: Parent %d exited children = %d\n",
+            parent->pid, parent->exited_children);
     }
 
 
     // Get rid of the current process, and switch to a new one
     struct process_info *next = pop_process(&process_queue, &pq_tail);
     if (next == NULL) {
-        TracePrintf(1, "EXIT: Switching to idle process\n");
 
         // If all processes have exited, exit the kernel
         if (process_queue == NULL && waiting_queue == NULL)
@@ -344,6 +348,14 @@ int KernelWait(int *status_ptr) {
                 int pid = es->pid;
                 free(es);
                 return pid;
+            } else {
+                es = exit_queue;
+                while (es != NULL) {
+                    TracePrintf(0, "WAIT: pid = %d, parent = %d, status = %d\n",
+                        es->pid, es->parent, es->status);
+                    es = es->next;
+                }
+                KernelDelay(1);
             }
         } else {    // If no children have exited, block
             TracePrintf(1, "WAIT: No children exited, blocking\n");
@@ -425,7 +437,7 @@ int KernelBrk(void *addr) {
  * If a negative number of ticks is provided, returns ERROR.
  */
 int KernelDelay(int clock_ticks) {
-	TracePrintf(0, "DELAY: pid = %d\n", active_process->pid);
+	TracePrintf(1, "DELAY: pid = %d\n", active_process->pid);
 
 	// Check invalid or trivial input
 	if (clock_ticks < 0)
@@ -508,7 +520,7 @@ int KernelTtyRead(int tty_id, void *buf, int len) {
  * Implements the TtyWrite() kernel call.
  */
 int KernelTtyWrite(int tty_id, void *buf, int len) {
-    TracePrintf(0, "TtyWrite\n");
+    TracePrintf(0, "TtyWrite %d\n", active_process->pid);
 
     if (len > TERMINAL_MAX_LINE)
         return ERROR;

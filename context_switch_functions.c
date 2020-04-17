@@ -7,12 +7,12 @@ void RemoveSwitch(void) {
     struct process_info *next = pop_process(&process_queue, &pq_tail);
 
     if (next == NULL) {
-        TracePrintf(1, "Switching from pid %d to %d\n", active_process->pid, idle->pid);
+        TracePrintf(2, "Switching from pid %d to %d\n", active_process->pid, idle->pid);
         ContextSwitch(ContextSwitchFunc, &active_process->ctx,
             (void*)active_process, (void*)idle);
     }
     else {
-        TracePrintf(1, "Popped process %d off queue\n", next->pid);
+        TracePrintf(2, "Popped process %d off queue\n", next->pid);
 
         last_switch = clock_count;
 
@@ -43,18 +43,18 @@ SavedContext *ContextSwitchFunc(SavedContext *ctxp,
     active_process = newProc;
 
     // Set region 0 page table to new process table
-    TracePrintf(1, "CONTEXT SWITCH: Writing new region 0 PT addr %p\n", newProc->page_table);
+    TracePrintf(2, "CONTEXT SWITCH: Writing new region 0 PT addr %p\n", newProc->page_table);
     WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
     kernel_page_table[PAGE_TABLE_LEN - 1].pfn =
         DOWN_TO_PAGE(newProc->page_table) >> PAGESHIFT;
 
-    TracePrintf(1, "CONTEXT SWITCH: Flushing TLB\n");
+    TracePrintf(2, "CONTEXT SWITCH: Flushing TLB\n");
     // Flush region 0 entries from the TLB and page table entry from region 1
     WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) TLB_FLUSH_0);
     WriteRegister(REG_TLB_FLUSH, (RCS421RegVal) (VMEM_LIMIT - PAGESIZE));
 
     struct pte *active_page_table = VMEM_LIMIT - PAGESIZE;
-    TracePrintf(1, "CONTEXT SWITCH: Kernel stack pfns: %d, %d, %d, %d\n",
+    TracePrintf(2, "CONTEXT SWITCH: Kernel stack pfns: %d, %d, %d, %d\n",
         active_page_table[PAGE_TABLE_LEN - 4].pfn,
         active_page_table[PAGE_TABLE_LEN - 3].pfn,
         active_page_table[PAGE_TABLE_LEN - 2].pfn,
@@ -89,7 +89,7 @@ SavedContext *ContextSwitchForkHelper(SavedContext *ctxp,
         WriteRegister(REG_TLB_FLUSH, (RCS421RegVal)temp);
 
         // Copy kernel stack contents to new physical frame
-        TracePrintf(1, "FORK: Calling memcpy, %x, %x\n", (unsigned int)temp,
+        TracePrintf(2, "FORK: Calling memcpy, %x, %x\n", (unsigned int)temp,
                     (unsigned int)(VMEM_0_BASE + i * PAGESIZE));
         memcpy(temp, (const void *)(VMEM_0_BASE + i * PAGESIZE), PAGESIZE);
     }
@@ -111,7 +111,7 @@ SavedContext *ContextSwitchInitHelper(SavedContext *ctxp,
     struct pte *init_page_table = (struct pte *) (VMEM_LIMIT - PAGESIZE * 2);
     //copy the Kernel Stack
     for (i = 0; i < KERNEL_STACK_PAGES; ++i) {
-        TracePrintf(1, "copying to %p from %p\n",(void*)(VMEM_LIMIT - 3 * PAGESIZE),(void*)(KERNEL_STACK_BASE + i * PAGESIZE));
+        TracePrintf(2, "copying to %p from %p\n",(void*)(VMEM_LIMIT - 3 * PAGESIZE),(void*)(KERNEL_STACK_BASE + i * PAGESIZE));
         struct pte  init_stack_entry = {
             .pfn = alloc_page(),
             .unused = 0b00000,
@@ -158,7 +158,7 @@ SavedContext *ContextSwitchExitHelper(SavedContext *ctxp,
     for (i = PAGE_TABLE_LEN - KERNEL_STACK_PAGES; i < PAGE_TABLE_LEN; ++i)
         free_page((CURRENT_PAGE_TABLE + i)->pfn);
 
-    TracePrintf(1, "Freeing page table of process %d\n", curProc->pid);
+    TracePrintf(2, "Freeing page table of process %d\n", curProc->pid);
     // Free the process page table
     free_page_table(active_process->page_table);
 
@@ -169,7 +169,7 @@ SavedContext *ContextSwitchExitHelper(SavedContext *ctxp,
     active_process = newProc;
 
     // Set region 0 page table to new process table
-    TracePrintf(1, "writing new region 0 PT addr %p\n", newProc->page_table);
+    TracePrintf(2, "writing new region 0 PT addr %p\n", newProc->page_table);
     WriteRegister(REG_PTR0, (RCS421RegVal) newProc->page_table);
     kernel_page_table[PAGE_TABLE_LEN - 1].pfn =
         DOWN_TO_PAGE(newProc->page_table) >> PAGESHIFT;

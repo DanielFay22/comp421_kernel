@@ -33,13 +33,6 @@ struct pte *get_new_page_table() {
     } else {
         // Allocate a new page
         unsigned int pfn = alloc_page();
-//        struct available_page_table *pt_ptr = (struct available_page_table *)
-//            malloc(sizeof(struct available_page_table));
-//
-//        // Add the extra half page to the free tables list
-//        pt_ptr->page_table = (void *)(pfn << PAGESHIFT + PAGESIZE / 2);
-//        pt_ptr->next = page_tables;
-//        page_tables = pt_ptr;
 
         page_table = (void *)(pfn << PAGESHIFT);
     }
@@ -58,36 +51,6 @@ struct pte *get_new_page_table() {
 void free_page_table(struct pte *pt) {
     unsigned int pfn = ((unsigned int)pt) >> PAGESHIFT;
     free_page(pfn);
-//    struct available_page_table *head = page_tables;
-//    struct available_page_table *prev = NULL;
-//    while (head != NULL) {
-//        if (((unsigned int)head->page_table) >> PAGESHIFT == pfn)
-//            break;
-//        prev = head;
-//        head = head->next;
-//    }
-//
-//    // If both halves of the page frame are not in use, free the page
-//    if (head != NULL) {
-//        if (prev == NULL)
-//            page_tables = head->next;
-//        else
-//            prev->next = head->next;
-//
-//        free(head);
-//        free_page(pfn);
-//    } else {
-//        // Otherwise add an entry to the list of free pagetables
-//        struct available_page_table *apt = (struct available_page_table *)
-//            malloc(sizeof(struct available_page_table));
-//        *apt = (struct available_page_table) {
-//            .page_table = (void *)pt,
-//            .next = page_tables
-//        };
-//
-//        page_tables = apt;
-//    }
-
 }
 
 /*
@@ -147,7 +110,7 @@ int free_page(int pfn) {
 void push_process(struct process_info **head, struct process_info **tail,
     struct process_info *new_pcb) {
 
-    TracePrintf(1, "PUSH PROCESS: Pushing process %d onto a queue\n", new_pcb->pid);
+    TracePrintf(2, "PUSH PROCESS: Pushing process %d onto a queue\n", new_pcb->pid);
 
     if (*head == NULL) {
         *head = new_pcb;
@@ -201,12 +164,6 @@ struct process_info *pop_process(struct process_info **head,
 void remove_process(struct process_info **head, struct process_info **tail,
     struct process_info *pi) {
 
-//    TracePrintf(0, "Remove process: head address = %x, tail address = %x\n",
-//                (unsigned int)*head, (unsigned int)*tail);
-//    TracePrintf(0, "Remove process: pi = %x\n", (unsigned int)pi);
-//    TracePrintf(0, "Remove process: pi.next_process = %x, pi.prev_process = %x\n",
-//                (unsigned int)pi->next_process, (unsigned int)pi->prev_process);
-
     // If pi is head or tail, update accordingly.
     if (*head == pi)
         *head = pi->next_process;
@@ -223,6 +180,6 @@ void remove_process(struct process_info **head, struct process_info **tail,
     pi->prev_process = NULL;
     pi->next_process = NULL;
 
-    TracePrintf(0, "Removing process %d from queue\n", pi->pid);
+    TracePrintf(2, "Removing process %d from queue\n", pi->pid);
 
 }

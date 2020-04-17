@@ -332,8 +332,13 @@ int KernelWait(int *status_ptr) {
                 // Remove es from queue
                 if (es->prev != NULL)
                     es->prev->next = es->next;
+                else
+                    exit_queue = es->next;
+
                 if (es->next != NULL)
                     es->next->prev = es->prev;
+                else
+                    eq_tail = es->prev;
 
                 // Free the status struct and return the pid
                 int pid = es->pid;

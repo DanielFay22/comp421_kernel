@@ -200,6 +200,32 @@ void KernelExit(int status) {
     TracePrintf(1, "EXIT: Finding parent %d of process %d\n",
         active_process->parent, active_process->pid);
 
+    // Free any existing exit_status objects for unreaped children
+    struct exit_status *es = exit_queue;
+    while (es != NULL) {
+
+        if (es->parent == active_process->pid) {
+            // Remove and free es
+            if (es->prev != NULL)
+                es->prev->next = es->next;
+            else
+                exit_queue = es->next;
+
+            if (es->next != NULL)
+                es->next->prev = es->prev;
+            else
+                eq_tail = es->prev;
+
+            struct exit_status *es_next = es->next;
+            free(es);
+            es = es_next;
+
+        } else
+            es = es->next;
+    }
+
+
+
     // Find the parent process if it is still active.
     if (active_process->parent != NO_PARENT) {
         struct active_process *head = all_processes;

@@ -3,6 +3,16 @@ Project Members:
 Daniel Fay, dpf2
 Tucker Reinhardt, tbr1
 
+Our Kernel uses several files:
+
+yalnix.c                   - contains KernelStart
+kernel.h 				   - contains global variables, struct definitions
+kernel_calls.c             - contains the kernel call functions
+context_switch_functions.c - contains our context switch helper functions
+interrupt_handlers.c 	   - contains the trap/interrupt handler routines
+util.c 					   - contains utility methods such as linked list
+load.c 					   - contains LoadProgram
+idle.c 					   - idle user program to be loaded
 
 Testing:
 For testing we first wrote small functions designed to stress
